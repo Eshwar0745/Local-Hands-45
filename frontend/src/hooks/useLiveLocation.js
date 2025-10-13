@@ -15,7 +15,7 @@ export default function useLiveLocation({ isActive, bookingId, customerId }) {
 
     const sendLocation = async (coords) => {
       try {
-        await API.post("/provider/update-location", {
+        await API.post("/providers/update-location", {
           lng: coords.longitude,
           lat: coords.latitude,
           bookingId,

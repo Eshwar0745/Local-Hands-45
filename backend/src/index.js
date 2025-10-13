@@ -22,6 +22,32 @@ dotenv.config({ path: path.join(__dirname, '../.env') });
 	console.log(`[startup] TWILIO_AUTH_TOKEN present=${token ? 'yes' : 'no'} length=${token.length}`);
 	console.log(`[startup] TWILIO_WHATSAPP_NUMBER present=${number ? 'yes' : 'no'} value=${number}`);
 })();
+import http from 'http';
+import { Server } from 'socket.io';
 import app from './app.js';
+import { initializeChatSocket } from './socket/chatSocket.js';
+
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => console.log(`✅ Server running on port ${PORT}`));
+
+// Create HTTP server
+const server = http.createServer(app);
+
+// Initialize Socket.IO with CORS
+const io = new Server(server, {
+	cors: {
+		origin: process.env.CLIENT_URL || 'http://localhost:3000',
+		methods: ['GET', 'POST'],
+		credentials: true
+	}
+});
+
+// Initialize chat socket handlers
+initializeChatSocket(io);
+
+// Make io accessible in app for booking completion events
+app.set('io', io);
+
+server.listen(PORT, () => {
+	console.log(`✅ Server running on port ${PORT}`);
+	console.log(`✅ Socket.IO ready for real-time chat`);
+});

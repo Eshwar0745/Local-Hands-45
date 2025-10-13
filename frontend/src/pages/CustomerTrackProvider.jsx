@@ -14,7 +14,7 @@ export default function CustomerTrackProvider() {
     let interval;
     const fetchData = async () => {
       try {
-        const { data } = await API.get(`/provider/track/${providerId}`);
+        const { data } = await API.get(`/providers/track/${providerId}`);
         if (data.location?.coordinates) {
           setProvider({
             lat: data.location.coordinates[1],

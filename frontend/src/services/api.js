@@ -54,7 +54,7 @@ export const ProviderAPI = {
   availability: (isAvailable) => API.patch('/providers/availability', { isAvailable }),
   goLive: () => API.patch('/providers/go-live', {}),
   goOffline: () => API.patch('/providers/go-offline', {}),
-  updateLocation: (lng, lat) => API.patch('/providers/location', { lng, lat })
+  updateLocation: (lng, lat) => API.post('/providers/update-location', { lng, lat })
 };
 
 export default API;

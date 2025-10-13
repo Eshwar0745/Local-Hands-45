@@ -8,6 +8,7 @@ export default function WhatsAppAuth({ onSuccess, isLogin = false }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
+  const [showQR, setShowQR] = useState(false);
 
   // Step 1: Send OTP
   const handleSendOTP = async (e) => {
@@ -118,6 +119,66 @@ export default function WhatsAppAuth({ onSuccess, isLogin = false }) {
       {error && (
         <div className="p-3 bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/30 rounded-lg text-red-700 dark:text-red-400 text-sm">
           {error}
+        </div>
+      )}
+
+      {/* QR Code Section - Scan to Get OTP */}
+      {step === 'phone' && (
+        <div className="mb-4 p-4 bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 border border-green-200 dark:border-green-700 rounded-lg">
+          <button
+            type="button"
+            onClick={() => setShowQR(!showQR)}
+            className="w-full flex items-center justify-between text-left"
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-white dark:bg-gray-800 rounded-lg flex items-center justify-center shadow-sm">
+                <img 
+                  src="/images/qr.svg" 
+                  alt="QR Code" 
+                  className="w-6 h-6"
+                />
+              </div>
+              <div>
+                <h4 className="font-semibold text-gray-900 dark:text-white text-sm">
+                  📱 Scan this  QR to receive OTP for login
+                </h4>
+                
+              </div>
+            </div>
+            <div className="text-gray-400">
+              {showQR ? '▲' : '▼'}
+            </div>
+          </button>
+
+          {showQR && (
+            <div className="mt-4 pt-4 border-t border-green-200 dark:border-green-700">
+              <div className="flex flex-col items-center">
+                <div className="bg-white p-4 rounded-xl shadow-lg mb-3">
+                  <img 
+                    src="/images/qr.svg" 
+                    alt="Scan for WhatsApp OTP Login" 
+                    className="w-48 h-48"
+                  />
+                </div>
+                <div className="text-center space-y-2">
+                  <p className="text-sm font-medium text-gray-900 dark:text-white">
+                    🔍 Scan with your mobile camera
+                  </p>
+                  <p className="text-xs text-gray-600 dark:text-gray-400 max-w-xs">
+                    Point your phone camera at the QR code to instantly receive your OTP via WhatsApp
+                  </p>
+                  <div className="flex items-center justify-center gap-2 mt-3">
+                    <span className="px-3 py-1 bg-white dark:bg-gray-800 rounded-full text-xs font-medium text-gray-700 dark:text-gray-300 shadow-sm">
+                      ✅ Instant OTP
+                    </span>
+                    <span className="px-3 py-1 bg-white dark:bg-gray-800 rounded-full text-xs font-medium text-gray-700 dark:text-gray-300 shadow-sm">
+                      🔒 Secure
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
 

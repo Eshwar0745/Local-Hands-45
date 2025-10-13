@@ -12,9 +12,13 @@
     "seed:providers": "node src/seed/seedProviders.js",
     "seed:catalog": "node src/seed/seedCatalog.js",
     "seed:random-providers": "node src/seed/seedRandomProviders.js",
+    "seed:test-data": "node src/scripts/seedTestData.js",
     "recompute:ratings": "node src/scripts/recomputeRatings.js",
     "migrate:services": "node src/scripts/migrateServicesToTemplates.js",
-    "test": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js --runInBand"
+    "test": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js --runInBand",
+    "test:comprehensive": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js src/tests/comprehensive.test.js --runInBand --detectOpenHandles",
+    "test:watch": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js --watch",
+    "test:report": "node src/scripts/runTests.js"
   },
   "keywords": [],
   "author": "",
@@ -31,6 +35,7 @@
     "mongoose": "^8.18.2",
     "morgan": "^1.10.1",
     "multer": "^2.0.2",
+    "socket.io": "^4.8.1",
     "twilio": "^5.10.2"
   },
   "devDependencies": {

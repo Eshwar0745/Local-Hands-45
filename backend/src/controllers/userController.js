@@ -4,11 +4,25 @@ import jwt from "jsonwebtoken";
 
 export const updateProfile = async (req, res) => {
   try {
-    const { name, phone, address } = req.body;
+    const { name, phone, address, alternatePhone, languages } = req.body;
     const update = {};
+    
     if (name) update.name = name;
     if (phone) update.phone = phone;
-    if (address !== undefined) update.address = address; // customer only concept, but we won't restrict here yet
+    if (address !== undefined) update.address = address;
+    
+    // ✅ NEW: Alternate phone for calling functionality
+    if (alternatePhone !== undefined) update.alternatePhone = alternatePhone;
+    
+    // ✅ NEW: Languages for provider matching
+    if (languages !== undefined) {
+      if (Array.isArray(languages)) {
+        update.languages = languages.filter(lang => lang && lang.trim());
+      } else {
+        return res.status(400).json({ message: 'Languages must be an array' });
+      }
+    }
+    
     const user = await User.findByIdAndUpdate(req.userId, update, { new: true }).select("-password");
     res.json({ user });
   } catch (e) {

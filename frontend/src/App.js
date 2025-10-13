@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
 import { useAuth } from "./context/AuthContext";
+import { SocketProvider } from "./context/SocketContext";
 import ProtectedRoute from "./components/ProtectedRoute";
 import RoleGuard from "./components/RoleGuard";
 import LogoReveal from "./components/LogoReveal";
@@ -28,6 +29,7 @@ import AdminVerificationsPage from "./pages/AdminVerificationsPage";
 import ProviderVerificationPage from "./pages/ProviderVerificationPage";
 import WelcomePage from "./pages/WelcomePage";
 import ForgotPassword from "./pages/ForgotPassword";
+import ProfileSettings from "./pages/ProfileSettings";
 
 // 🌍 New Map Pages (Leaflet-based)
 import CustomerTrackProvider from "./pages/CustomerTrackProvider";
@@ -254,6 +256,14 @@ export default function App() {
                 </ProtectedRoute>
               }
             />
+            <Route
+              path="/settings"
+              element={
+                <ProtectedRoute>
+                  <ProfileSettings />
+                </ProtectedRoute>
+              }
+            />
 
             {/* Catch-All */}
             <Route path="*" element={<Navigate to="/" replace />} />
@@ -261,5 +271,14 @@ export default function App() {
         </main>
       </div>
     </ToastProvider>
+  );
+}
+
+// Wrap entire app with SocketProvider
+export function AppWithSocket() {
+  return (
+    <SocketProvider>
+      <App />
+    </SocketProvider>
   );
 }

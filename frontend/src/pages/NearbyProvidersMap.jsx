@@ -52,7 +52,7 @@ export default function NearbyProvidersMap() {
 
     const fetchProviders = async () => {
       try {
-        const { data } = await API.get("/provider/nearby", {
+        const { data } = await API.get("/providers/nearby", {
           params: {
             lng: userLoc.lng,
             lat: userLoc.lat,

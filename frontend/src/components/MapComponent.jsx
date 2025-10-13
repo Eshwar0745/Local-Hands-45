@@ -96,7 +96,7 @@ export default function MapComponent({
           onLocationChange({ lat: ll.lat, lng: ll.lng, accuracy: null, source: 'drag' });
         }
         if(kind==='provider') {
-          API.patch('/providers/location', { lng: ll.lng, lat: ll.lat }).catch(()=>{});
+          API.post('/providers/update-location', { lng: ll.lng, lat: ll.lat }).catch(()=>{});
         }
         updateRoute();
       });
@@ -147,7 +147,7 @@ export default function MapComponent({
       else setOrMoveMarker('customer', coords);
       if(onLocationChange){ onLocationChange({ ...coords, accuracy, source: 'watch' }); }
       if(selfRole === 'provider') {
-        API.patch('/providers/location', { lng: longitude, lat: latitude }).catch(()=>{});
+        API.post('/providers/update-location', { lng: longitude, lat: latitude }).catch(()=>{});
         setLastProviderUpdate(Date.now());
       }
     }, err => {

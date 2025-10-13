@@ -41,7 +41,7 @@ export default function ProviderHome() {
   useEffect(() => {
     (async () => {
       try {
-        const { data } = await API.get("/provider/status");
+        const { data } = await API.get("/providers/status");
         if (typeof data.isOnline === "boolean") setIsLive(data.isOnline);
       } catch {
         /* ignore */
@@ -99,16 +99,46 @@ export default function ProviderHome() {
     try {
       setLoadingLive(true);
       if (isLive) {
-        await API.patch("/provider/go-offline");
+        // Going offline
+        await API.patch("/providers/go-offline");
         setIsLive(false);
       } else {
-        await API.patch("/provider/go-live");
-        setIsLive(true);
+        // Going live - need to get GPS location first
+        if (!navigator.geolocation) {
+          alert('Geolocation is not supported by your browser');
+          setLoadingLive(false);
+          return;
+        }
+
+        navigator.geolocation.getCurrentPosition(
+          async (position) => {
+            try {
+              await API.patch("/providers/go-live", {
+                lng: position.coords.longitude,
+                lat: position.coords.latitude
+              });
+              setIsLive(true);
+            } catch (e) {
+              alert(e?.response?.data?.message || "Failed to go live");
+            } finally {
+              setLoadingLive(false);
+            }
+          },
+          (error) => {
+            alert('Unable to get your location. Please enable location services.');
+            console.error('Geolocation error:', error);
+            setLoadingLive(false);
+          },
+          { enableHighAccuracy: true, timeout: 10000 }
+        );
+        return; // Don't set setLoadingLive(false) here, it's in the callback
       }
     } catch (e) {
       alert(e?.response?.data?.message || "Failed to toggle live status");
     } finally {
-      setLoadingLive(false);
+      if (isLive) { // Only reset loading if we were going offline
+        setLoadingLive(false);
+      }
     }
   };
 
