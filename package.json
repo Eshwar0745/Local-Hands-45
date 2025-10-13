@@ -1,5 +1,7 @@
 {
   "dependencies": {
-    "nodemailer": "^7.0.7"
+    "leaflet": "^1.9.4",
+    "nodemailer": "^7.0.7",
+    "react-leaflet": "^5.0.0"
   }
 }
