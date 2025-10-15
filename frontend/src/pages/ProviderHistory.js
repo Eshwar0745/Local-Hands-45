@@ -1,11 +1,10 @@
 import React, { useEffect, useState } from "react";
 import API from "../services/api";
-import { FiUser, FiCalendar, FiCheck, FiX, FiStar, FiMessageCircle, FiPhone } from "react-icons/fi";
+import { FiUser, FiCalendar, FiCheck, FiX, FiStar } from "react-icons/fi";
 import ReviewCard from "../components/ReviewCard";
 // Switched to EnhancedRatingModal (hidden review + optional message). Providers do not upload images.
 import EnhancedRatingModal from "../components/EnhancedRatingModal";
 import { RatingsAPI } from "../services/api.extras";
-import BookingChat from "../components/BookingChat";
 
 export default function ProviderHistory() {
   const [bookings, setBookings] = useState([]);
@@ -14,7 +13,6 @@ export default function ProviderHistory() {
   const [submitting, setSubmitting] = useState(false);
   const [customerProfile, setCustomerProfile] = useState(null);
   const [loadingProfile, setLoadingProfile] = useState(false);
-  const [activeChat, setActiveChat] = useState(null);
 
   useEffect(() => {
     (async () => {
@@ -30,16 +28,6 @@ export default function ProviderHistory() {
   }, []);
 
   const canRate = (b) => b.status === "completed" && !b.providerRating;
-
-  const canChat = (b) => ["accepted", "in_progress"].includes(b.status);
-
-  const handleCall = (phone) => {
-    if (phone) {
-      window.location.href = `tel:${phone}`;
-    } else {
-      alert("Phone number not available");
-    }
-  };
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-50 to-white dark:from-[#0f172a] dark:via-[#1e293b] dark:to-[#0f172a] transition-all duration-300">
@@ -109,49 +97,24 @@ export default function ProviderHistory() {
                   </span>
                 </div>
 
-                <div className="mt-4">
-                  <div className="text-blue-500 font-semibold mb-3">
+                <div className="mt-4 flex items-center justify-between">
+                  <div className="text-blue-500 font-semibold">
                     ₹{b.service?.price || 0}
                   </div>
 
-                  <div className="flex items-center gap-3 flex-wrap">
-                    {canRate(b) ? (
-                      <button
-                        onClick={() => setRateFor(b)}
-                        className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm"
-                      >
-                        Rate Customer
-                      </button>
-                    ) : b.providerRating ? (
-                      <div className="text-sm text-gray-500 dark:text-gray-400 flex items-center gap-1">
-                        <FiStar className="text-yellow-400" />{" "}
-                        {b.providerRating}/5
-                      </div>
-                    ) : null}
-
-                    {/* ✅ Chat and Call buttons for active bookings */}
-                    {canChat(b) && (
-                      <>
-                        <button
-                          onClick={() => setActiveChat(b)}
-                          className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg text-sm flex items-center gap-2 transition-colors"
-                        >
-                          <FiMessageCircle size={18} />
-                          Chat with Customer
-                        </button>
-
-                        {(b.customer?.phone || b.customer?.alternatePhone) && (
-                          <button
-                            onClick={() => handleCall(b.customer.alternatePhone || b.customer.phone)}
-                            className="px-4 py-2 bg-green-500 hover:bg-green-600 text-white rounded-lg text-sm flex items-center gap-2 transition-colors"
-                          >
-                            <FiPhone size={18} />
-                            Call Customer
-                          </button>
-                        )}
-                      </>
-                    )}
-                  </div>
+                  {canRate(b) ? (
+                    <button
+                      onClick={() => setRateFor(b)}
+                      className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm"
+                    >
+                      Rate Customer
+                    </button>
+                  ) : b.providerRating ? (
+                    <div className="text-sm text-gray-500 dark:text-gray-400 flex items-center gap-1">
+                      <FiStar className="text-yellow-400" />{" "}
+                      {b.providerRating}/5
+                    </div>
+                  ) : null}
                 </div>
               </div>
             ))}
@@ -207,14 +170,6 @@ export default function ProviderHistory() {
               </div>
             </div>
           </div>
-        )}
-        
-        {/* ✅ Chat Component */}
-        {activeChat && (
-          <BookingChat 
-            booking={activeChat} 
-            onClose={() => setActiveChat(null)} 
-          />
         )}
       </div>
     </div>

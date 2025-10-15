@@ -18,6 +18,7 @@ import notificationsRoutes from './routes/notificationsRoutes.js';
 import adminRoutes from './routes/adminRoutes.js';
 import catalogRoutes from './routes/catalogRoutes.js';
 import uploadRoutes from './routes/uploadRoutes.js';
+import healthRoutes from './routes/healthRoutes.js';
 import Booking from './models/Booking.js';
 
 dotenv.config();
@@ -29,10 +30,36 @@ connectDB().then(async ()=>{
 });
 
 const app = express();
-app.use(cors());
+
+// CORS configuration - allow both local dev and production Vercel
+const allowedOrigins = [
+  'http://localhost:3000',
+  'http://localhost:3001',
+  'https://local-hands-01.vercel.app',
+  'https://localhands-oos4mx2jc-eshwar104515-7127s-projects.vercel.app' // Preview deployments
+];
+
+app.use(cors({
+  origin: function(origin, callback) {
+    // Allow requests with no origin (mobile apps, Postman, etc.)
+    if (!origin) return callback(null, true);
+    
+    // Allow if origin is in the list OR matches vercel.app domain
+    if (allowedOrigins.includes(origin) || origin.endsWith('.vercel.app')) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  credentials: true
+}));
+
 // Increase JSON limit to allow base64-embedded work images (lightweight proofs)
 app.use(express.json({ limit: '10mb' }));
 app.use(morgan('dev'));
+
+// Health check routes (must be before other routes for quick response)
+app.use('/api', healthRoutes);
 
 app.use('/api/auth', authRoutes);
 app.use('/api/mobile-auth', mobileAuthRoutes);

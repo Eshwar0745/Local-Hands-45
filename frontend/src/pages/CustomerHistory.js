@@ -1,11 +1,10 @@
 import React, { useEffect, useState } from "react";
 import API from "../services/api";
-import { FiCalendar, FiCheck, FiX, FiStar, FiMessageCircle, FiPhone } from "react-icons/fi";
+import { FiCalendar, FiCheck, FiX, FiStar } from "react-icons/fi";
 // Migrated from legacy RatingModal to EnhancedRatingModal with hidden review + optional message + image support
 import EnhancedRatingModal from "../components/EnhancedRatingModal";
 import { RatingsAPI } from "../services/api.extras";
 import ReviewCard from "../components/ReviewCard";
-import BookingChat from "../components/BookingChat";
 
 export default function CustomerHistory() {
   const [bookings, setBookings] = useState([]);
@@ -16,8 +15,6 @@ export default function CustomerHistory() {
   // For provider profile reviews shown in modal (if desired later)
   const [providerProfile, setProviderProfile] = useState(null);
   const [loadingProfile, setLoadingProfile] = useState(false);
-  // ✅ NEW: Chat functionality
-  const [activeChat, setActiveChat] = useState(null);
 
   const load = async () => {
     setLoading(true);
@@ -39,18 +36,6 @@ export default function CustomerHistory() {
 
   const canRate = (b) =>
     b.status === "completed" && !b.customerRating;
-
-  // ✅ Check if chat is available for active bookings
-  const canChat = (b) => ['accepted', 'in_progress'].includes(b.status);
-  
-  // ✅ Handle phone call
-  const handleCall = (phone) => {
-    if (phone) {
-      window.location.href = `tel:${phone}`;
-    } else {
-      alert('Phone number not available');
-    }
-  };
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-50 to-white dark:from-[#0f172a] dark:via-[#1e293b] dark:to-[#0f172a] transition-all duration-300">
@@ -115,30 +100,7 @@ export default function CustomerHistory() {
                 </div>
               </div>
 
-              <div className="mt-4 flex flex-wrap gap-3">
-                {/* ✅ Chat & Call buttons for active bookings */}
-                {canChat(b) && (
-                  <>
-                    <button
-                      onClick={() => setActiveChat(b)}
-                      className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-all duration-300 shadow-sm flex items-center gap-2"
-                    >
-                      <FiMessageCircle size={18} />
-                      Chat with Provider
-                    </button>
-                    {(b.provider?.phone || b.provider?.alternatePhone) && (
-                      <button
-                        onClick={() => handleCall(b.provider.alternatePhone || b.provider.phone)}
-                        className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-all duration-300 shadow-sm flex items-center gap-2"
-                      >
-                        <FiPhone size={18} />
-                        Call Provider
-                      </button>
-                    )}
-                  </>
-                )}
-                
-                {/* Rating button */}
+              <div className="mt-4">
                 {canRate(b) ? (
                   <button
                     onClick={() => setRateFor(b)}
@@ -219,14 +181,6 @@ export default function CustomerHistory() {
             </div>
           </div>
         </div>
-      )}
-      
-      {/* ✅ Chat Component */}
-      {activeChat && (
-        <BookingChat 
-          booking={activeChat} 
-          onClose={() => setActiveChat(null)} 
-        />
       )}
       </div>
     </div>

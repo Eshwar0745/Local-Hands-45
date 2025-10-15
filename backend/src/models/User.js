@@ -36,13 +36,9 @@ const userSchema = new mongoose.Schema(
     rating: { type: Number, default: 0 },
     ratingCount: { type: Number, default: 0 },
     completedJobs: { type: Number, default: 0 },
-    // ✅ NEW: Languages spoken by provider (for better customer matching)
-    languages: [{ type: String }], // e.g., ["English", "Hindi", "Telugu", "Tamil"]
     // Customer specific
     address: { type: String },
     preciseAddress: { type: String }, // For remote/rural locations with detailed directions
-    // ✅ NEW: Alternative contact number (for call functionality)
-    alternatePhone: { type: String },
     // Password reset (OTP via email)
     passwordResetOtp: { type: String },
     passwordResetExpires: { type: Date },
