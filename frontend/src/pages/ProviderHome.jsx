@@ -34,8 +34,13 @@ export default function ProviderHome() {
   const [loadingProfile, setLoadingProfile] = useState(false);
   const [error, setError] = useState("");
 
-  // 🧭 Track live location when provider is live
-  useLiveLocation({ isActive: isLive, userId: user?._id });
+  // 🧭 Track live location when provider is live OR has an active booking
+  const activeBooking = bookings.find((b) => b.status === "in_progress") || null;
+  useLiveLocation({
+    isActive: isLive || !!activeBooking,
+    bookingId: activeBooking?._id,
+    customerId: activeBooking?.customer?._id || activeBooking?.customer,
+  });
 
   // 🔁 Fetch current status on mount (restore session)
   useEffect(() => {

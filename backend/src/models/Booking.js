@@ -12,6 +12,30 @@ const bookingSchema = new mongoose.Schema(
     // Services
     service: { type: mongoose.Schema.Types.ObjectId, ref: "Service", required: true },
     serviceTemplate: { type: mongoose.Schema.Types.ObjectId, ref: "ServiceTemplate" },
+    serviceCatalog: { type: mongoose.Schema.Types.ObjectId, ref: "ServiceCatalog" },
+
+    // NEW: Service customization and estimate from questionnaire
+    serviceDetails: {
+      answers: {
+        type: Map,
+        of: mongoose.Schema.Types.Mixed
+      },
+      estimate: {
+        serviceCharge: Number,
+        visitCharge: Number,
+        platformFee: Number,
+        subtotal: Number,
+        total: Number,
+        breakdown: Object
+      }
+    },
+
+    // NEW: Sort preference for provider assignment
+    sortPreference: {
+      type: String,
+      enum: ['nearby', 'rating', 'mix', 'cheapest'],
+      default: 'nearby'
+    },
 
     // Scheduling
     scheduledAt: { type: Date },

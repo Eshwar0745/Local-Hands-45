@@ -16,6 +16,7 @@ import AdminNavbar from "./components/AdminNavbar";
 // 🧾 Pages
 import HomePage from "./pages/HomePage";
 import CustomerHome from "./pages/CustomerHome";
+import CustomerHomeNew from "./pages/CustomerHomeNew";
 import ProviderHome from "./pages/ProviderHome";
 import ProfilePage from "./pages/ProfilePage";
 import LoginPage from "./pages/LoginPage";
@@ -146,6 +147,18 @@ export default function App() {
               <ProtectedRoute>
                 <RoleGuard allow={["customer"]}>
                   <CustomerHome />
+                </RoleGuard>
+              </ProtectedRoute>
+            }
+          />
+
+          {/* New Customer Home with Questionnaire Flow */}
+          <Route
+            path="/customer-home-new"
+            element={
+              <ProtectedRoute>
+                <RoleGuard allow={["customer"]}>
+                  <CustomerHomeNew />
                 </RoleGuard>
               </ProtectedRoute>
             }

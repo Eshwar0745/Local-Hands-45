@@ -1,0 +1,125 @@
+.estimate-display {
+  max-width: 600px;
+  margin: 0 auto;
+  padding: 20px;
+}
+
+.estimate-card {
+  background: white;
+  border-radius: 12px;
+  padding: 30px;
+  box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+}
+
+.estimate-card h3 {
+  text-align: center;
+  font-size: 24px;
+  margin-bottom: 30px;
+  color: #333;
+}
+
+.estimate-breakdown {
+  border: 2px solid #f0f0f0;
+  border-radius: 8px;
+  padding: 20px;
+  margin-bottom: 25px;
+}
+
+.line-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 0;
+  border-bottom: 1px solid #f5f5f5;
+}
+
+.line-item:last-child {
+  border-bottom: none;
+}
+
+.line-item.subtotal {
+  margin-top: 10px;
+  padding-top: 20px;
+  border-top: 2px solid #e0e0e0;
+}
+
+.line-item.total {
+  background: linear-gradient(135deg, #667eea22 0%, #764ba222 100%);
+  border-radius: 8px;
+  padding: 16px;
+  margin-top: 10px;
+  font-size: 18px;
+}
+
+.line-item span.amount {
+  font-weight: 600;
+  color: #2c3e50;
+}
+
+.line-item.total span.amount {
+  color: #667eea;
+  font-size: 22px;
+}
+
+.payment-note {
+  background: #e8f5e9;
+  border-left: 4px solid #4caf50;
+  padding: 16px;
+  border-radius: 6px;
+  margin-bottom: 25px;
+}
+
+.payment-note p {
+  margin: 0;
+  color: #2e7d32;
+}
+
+.payment-note p:first-child {
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+
+.payment-note .note-text {
+  font-size: 14px;
+  opacity: 0.9;
+}
+
+.btn-proceed {
+  width: 100%;
+  padding: 16px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.2s, box-shadow 0.2s;
+  margin-bottom: 15px;
+}
+
+.btn-proceed:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+}
+
+.disclaimer {
+  text-align: center;
+  font-size: 13px;
+  color: #666;
+  margin: 0;
+}
+
+@media (max-width: 768px) {
+  .estimate-card {
+    padding: 20px;
+  }
+
+  .line-item {
+    font-size: 14px;
+  }
+
+  .line-item.total {
+    font-size: 16px;
+  }
+}

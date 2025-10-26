@@ -2,6 +2,7 @@ import Booking from "../models/Booking.js";
 import Service from "../models/Service.js";
 import User from "../models/User.js";
 import ServiceTemplate from '../models/ServiceTemplate.js';
+import ServiceCatalog from '../models/ServiceCatalog.js';
 import { nextBookingId } from "../utils/generateId.js";
 import Review from "../models/Review.js";
 import mongoose from 'mongoose';
@@ -453,6 +454,72 @@ export const rejectBooking = async (req, res) => {
   }
 };
 
+// Live tracking status for a booking (customer/provider only)
+export const getTrackingStatus = async (req, res) => {
+  try {
+    const { id } = req.params; // booking _id
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ message: 'Invalid booking id' });
+    }
+
+    const booking = await Booking.findById(id)
+      .select('bookingId customer provider location providerLocation providerLastUpdate distanceFromCustomer status')
+      .lean();
+    if (!booking) return res.status(404).json({ message: 'Booking not found' });
+
+    // Privacy: only the customer or the assigned provider can view tracking
+    const uid = String(req.userId);
+    const isCustomer = booking.customer && String(booking.customer) === uid;
+    const isProvider = booking.provider && String(booking.provider) === uid;
+    if (!isCustomer && !isProvider) {
+      return res.status(403).json({ message: 'Not authorized to view this tracking info' });
+    }
+
+    const now = Date.now();
+    const last = booking.providerLastUpdate ? new Date(booking.providerLastUpdate).getTime() : 0;
+    const stale = !last || now - last > 30 * 1000; // 30s without update considered stale
+
+    // Compute distance & ETA if both locations present
+    let distanceKm = booking.distanceFromCustomer || null;
+    let etaMinutes = null;
+    const hasProvider = booking.providerLocation?.coordinates?.length === 2;
+    const hasCustomer = booking.location?.coordinates?.length === 2;
+    if (hasProvider && hasCustomer) {
+      const [plng, plat] = booking.providerLocation.coordinates;
+      const [clng, clat] = booking.location.coordinates;
+      const R = 6371;
+      const dLat = ((clat - plat) * Math.PI) / 180;
+      const dLng = ((clng - plng) * Math.PI) / 180;
+      const a = Math.sin(dLat / 2) ** 2 +
+        Math.cos((plat * Math.PI) / 180) * Math.cos((clat * Math.PI) / 180) *
+        Math.sin(dLng / 2) ** 2;
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+      distanceKm = Number((R * c).toFixed(2));
+    }
+
+    if (distanceKm != null) {
+      const avgSpeedKmH = 20; // Assumed urban speed
+      etaMinutes = Math.max(1, Math.ceil((distanceKm / avgSpeedKmH) * 60));
+    }
+
+    return res.json({
+      bookingId: booking.bookingId,
+      status: booking.status,
+      provider: hasProvider
+        ? { lat: booking.providerLocation.coordinates[1], lng: booking.providerLocation.coordinates[0], lastUpdate: booking.providerLastUpdate }
+        : null,
+      customer: hasCustomer
+        ? { lat: booking.location.coordinates[1], lng: booking.location.coordinates[0] }
+        : null,
+      stale,
+      distanceKm,
+      etaMinutes,
+    });
+  } catch (e) {
+    res.status(500).json({ message: e.message });
+  }
+};
+
 // Provider marks booking completed
 export const completeBooking = async (req, res) => {
   try {
@@ -597,6 +664,142 @@ export const myBookings = async (req, res) => {
   }
 };
 
+// Debug: show offers queue and pending providers for a booking
+export const getBookingOffersDebug = async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ message: 'Invalid booking id' });
+    }
+    const booking = await Booking.findById(id)
+      .populate('offers.provider', 'name rating isAvailable')
+      .populate('pendingProviders', 'name rating isAvailable')
+      .populate('serviceTemplate','name')
+      .populate('serviceCatalog','name category')
+      .lean();
+    if (!booking) return res.status(404).json({ message: 'Not found' });
+
+    // Allow only owner customer or admin to view
+    const isOwner = booking.customer && String(booking.customer) === String(req.userId);
+    if (!isOwner && req.userRole !== 'admin') {
+      return res.status(403).json({ message: 'Not authorized' });
+    }
+
+    const now = Date.now();
+    const timeout = booking.providerResponseTimeout ? new Date(booking.providerResponseTimeout).getTime() : null;
+    const secondsLeft = timeout ? Math.max(0, Math.ceil((timeout - now)/1000)) : null;
+    const currentPending = (booking.offers || []).find(o => o.status === 'pending');
+
+    return res.json({
+      booking: {
+        id: booking._id,
+        bookingId: booking.bookingId,
+        status: booking.status,
+        serviceTemplate: booking.serviceTemplate,
+        serviceCatalog: booking.serviceCatalog,
+        sortPreference: booking.sortPreference,
+      },
+      offers: booking.offers || [],
+      pendingProviders: booking.pendingProviders || [],
+      autoAssignMessage: booking.autoAssignMessage || null,
+      providerResponseTimeout: booking.providerResponseTimeout || null,
+      secondsLeft,
+      currentPendingProvider: currentPending?.provider || null,
+    });
+  } catch (e) {
+    res.status(500).json({ message: e.message });
+  }
+};
+
+// Debug: recompute candidate providers for this booking context
+export const getBookingCandidates = async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ message: 'Invalid booking id' });
+    }
+    const booking = await Booking.findById(id).select('customer location sortPreference serviceCatalog').lean();
+    if (!booking) return res.status(404).json({ message: 'Not found' });
+    const isOwner = booking.customer && String(booking.customer) === String(req.userId);
+    if (!isOwner && req.userRole !== 'admin') {
+      return res.status(403).json({ message: 'Not authorized' });
+    }
+
+    const catalog = await ServiceCatalog.findById(booking.serviceCatalog).lean();
+    if (!catalog) return res.status(400).json({ message: 'Service catalog not found on booking' });
+
+    const [lng, lat] = booking.location?.coordinates || [];
+    if (typeof lng !== 'number' || typeof lat !== 'number') {
+      return res.status(400).json({ message: 'Booking location missing' });
+    }
+
+    const safeName = catalog.name.replace(/[-\/\\^$*+?.()|[\]{}]/g, '.');
+    const nameRegex = new RegExp(safeName, 'i');
+    const services = await Service.find({
+      $or: [
+        { name: { $regex: nameRegex } },
+        { category: { $regex: new RegExp(`^${catalog.category}$`, 'i') } }
+      ]
+    }).populate('provider','name rating ratingCount isAvailable location');
+
+    const distKm = (lng1, lat1, lng2, lat2) => {
+      const R = 6371;
+      const dLat = ((lat2 - lat1) * Math.PI) / 180;
+      const dLng = ((lng2 - lng1) * Math.PI) / 180;
+      const a = Math.sin(dLat / 2) ** 2 +
+        Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+        Math.sin(dLng / 2) ** 2;
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+      return R * c;
+    };
+
+    const allOnline = [];
+    for (const s of services) {
+      if (!s.provider || !s.provider.isAvailable) continue;
+      const coords = Array.isArray(s.provider.location?.coordinates) ? s.provider.location.coordinates : [null, null];
+      const [plng, plat] = coords;
+      if (typeof plng !== 'number' || typeof plat !== 'number') continue;
+      const distanceKm = distKm(lng, lat, plng, plat);
+      allOnline.push({
+        providerId: s.provider._id,
+        name: s.provider.name,
+        rating: s.provider.rating || 0,
+        distanceKm: Number(distanceKm.toFixed(2)),
+        price: s.price || 0,
+      });
+    }
+
+    let candidates = [...allOnline];
+    const pref = booking.sortPreference || 'nearby';
+    let note = null;
+    if (pref === 'rating') {
+      candidates = candidates.filter(c => c.rating >= 4);
+      if (candidates.length === 0) {
+        candidates = allOnline.filter(c => c.rating >= 3);
+        if (candidates.length === 0) { candidates = [...allOnline]; note = 'Fallback to nearest due to limited options'; }
+      }
+      candidates.sort((a,b)=> (b.rating - a.rating) || (a.distanceKm - b.distanceKm));
+    } else if (pref === 'nearby') {
+      const bands = [ {min:1, max:5}, {min:0, max:8}, {min:0, max:12}, {min:0, max:15} ];
+      let filtered = [];
+      for (const b of bands) { filtered = allOnline.filter(c => c.distanceKm >= b.min && c.distanceKm <= b.max); if (filtered.length) break; }
+      candidates = filtered.length ? filtered : allOnline;
+      if (!filtered.length) note = 'Fallback to nearest available';
+      candidates.sort((a,b)=> (a.distanceKm - b.distanceKm) || (b.rating - a.rating));
+    } else if (pref === 'cheapest') {
+      candidates.sort((a,b)=> (a.price - b.price) || (b.rating - a.rating) || (a.distanceKm - b.distanceKm));
+    } else { // mix
+      const proximityScore = (dKm) => Math.max(0, 5 - (dKm / 3));
+      candidates = candidates.map(c => ({...c, mixScore: (c.rating * 0.6) + (proximityScore(c.distanceKm) * 0.4)}))
+        .sort((a,b)=> (b.mixScore - a.mixScore) || (a.distanceKm - b.distanceKm));
+    }
+
+    res.json({ count: candidates.length, preference: pref, note, candidates });
+  } catch (e) {
+    res.status(500).json({ message: e.message });
+  }
+};
+
 // Get pending job count for provider
 export const getPendingCount = async (req, res) => {
   try {
@@ -625,5 +828,236 @@ export const getPendingCount = async (req, res) => {
     res.json({ count });
   } catch (e) {
     res.status(500).json({ message: e.message });
+  }
+};
+
+// Calculate estimate based on service catalog and questionnaire answers
+export const calculateEstimate = async (req, res) => {
+  try {
+    const { serviceCatalogId, answers } = req.body;
+    
+    const serviceCatalog = await ServiceCatalog.findById(serviceCatalogId);
+    if (!serviceCatalog) {
+      return res.status(404).json({ message: 'Service not found' });
+    }
+    
+    const pricing = serviceCatalog.pricing;
+    let serviceCharge = pricing.basePrice;
+    
+    // Calculate based on answers and pricing rules
+    Object.entries(answers).forEach(([key, value]) => {
+      if (Array.isArray(value)) {
+        // Checkbox - add all selected option prices
+        value.forEach(option => {
+          const price = pricing.optionPrices.get(option);
+          if (price) serviceCharge += price;
+        });
+      } else if (typeof value === 'string') {
+        // Radio/select - add option price
+        const price = pricing.optionPrices.get(value);
+        if (price) serviceCharge += price;
+      } else if (key === 'area' && typeof value === 'number') {
+        // Special case for area-based pricing (painting)
+        serviceCharge = pricing.basePrice * value;
+        
+        // Add finish price
+        if (answers.finish) {
+          const finishPrice = pricing.optionPrices.get(answers.finish);
+          if (finishPrice) serviceCharge += (finishPrice * value);
+        }
+      }
+    });
+    
+    // Apply quantity multiplier
+    if (pricing.quantityMultiplier) {
+      const quantityFields = ['numberOfUnits', 'quantity', 'numberOfCameras', 'numberOfPoints', 'numberOfFixtures'];
+      for (const field of quantityFields) {
+        if (answers[field] && typeof answers[field] === 'number') {
+          serviceCharge = serviceCharge * answers[field];
+          break;
+        }
+      }
+    }
+    
+    // Apply complexity multiplier
+    if (pricing.complexityMultipliers && answers.complexity) {
+      const multiplier = pricing.complexityMultipliers.get(answers.complexity) || 1.0;
+      serviceCharge = serviceCharge * multiplier;
+    }
+    
+    const visitCharge = pricing.visitCharge || 0;
+    const platformFee = Math.max(20, Math.round(serviceCharge * 0.012)); // 1.2%
+    const subtotal = serviceCharge + visitCharge;
+    const total = subtotal + platformFee;
+    
+    res.json({
+      estimate: {
+        serviceCharge: Math.round(serviceCharge),
+        visitCharge,
+        platformFee,
+        subtotal: Math.round(subtotal),
+        total: Math.round(total),
+        breakdown: {
+          serviceName: serviceCatalog.name,
+          answers
+        }
+      }
+    });
+    
+  } catch (error) {
+    console.error('Estimate calculation error:', error);
+    res.status(500).json({ message: 'Error calculating estimate', error: error.message });
+  }
+};
+
+// Create booking with questionnaire-based flow (Pay Later only)
+export const createBookingWithQuestionnaire = async (req, res) => {
+  try {
+    const { serviceCatalogId, preferredDateTime, serviceDetails, sortPreference, location } = req.body;
+    const customerId = req.userId;
+
+    // Validate required fields
+    if (!serviceCatalogId || !preferredDateTime || !serviceDetails || !sortPreference || !location) {
+      return res.status(400).json({ message: 'Missing required fields' });
+    }
+
+    // Create a booking ID
+    const bookingId = await nextBookingId();
+
+    // ===== Provider discovery based on selected preference =====
+    const lng = Number(location.lng);
+    const lat = Number(location.lat);
+
+    // Helper: haversine distance in km
+    const distKm = (lng1, lat1, lng2, lat2) => {
+      const R = 6371;
+      const dLat = ((lat2 - lat1) * Math.PI) / 180;
+      const dLng = ((lng2 - lng1) * Math.PI) / 180;
+      const a = Math.sin(dLat / 2) ** 2 +
+        Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+        Math.sin(dLng / 2) ** 2;
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+      return R * c;
+    };
+
+    // Find services that match this catalog by name or category
+    const catalog = await ServiceCatalog.findById(serviceCatalogId).lean();
+    const safeName = catalog.name.replace(/[-\/\\^$*+?.()|[\]{}]/g, '.');
+    const nameRegex = new RegExp(safeName, 'i');
+    const services = await Service.find({
+      $or: [
+        { name: { $regex: nameRegex } },
+        { category: { $regex: new RegExp(`^${catalog.category}$`, 'i') } }
+      ]
+    }).populate('provider','name rating ratingCount isAvailable location');
+
+    const allOnline = [];
+    for (const s of services) {
+      if (!s.provider) continue;
+      const prov = s.provider;
+      if (!prov.isAvailable) continue;
+      const coords = Array.isArray(prov.location?.coordinates) ? prov.location.coordinates : [null,null];
+      const [plng, plat] = coords;
+      if (typeof plng !== 'number' || typeof plat !== 'number') continue; // skip invalid
+      const distanceKm = distKm(lng, lat, plng, plat);
+      allOnline.push({ service: s, provider: prov, distanceKm, rating: prov.rating || 0, rate: s.price || 0 });
+    }
+
+    let candidates = [];
+    let assignmentNote = undefined;
+
+    if (sortPreference === 'rating') {
+      // Prefer 4-5 stars
+      candidates = allOnline.filter(c => c.rating >= 4);
+      if (candidates.length === 0) {
+        // Fallback to 3+
+        candidates = allOnline.filter(c => c.rating >= 3);
+        if (candidates.length === 0) {
+          if (allOnline.length === 0) {
+            return res.status(400).json({ message: 'No providers currently available.' });
+          }
+          // Fallback to nearest available with message
+          assignmentNote = 'Showing nearest available provider due to limited options.';
+          candidates = [...allOnline];
+          candidates.sort((a,b)=> (a.distanceKm - b.distanceKm) || (b.rating - a.rating));
+        }
+      }
+      if (!assignmentNote) {
+        candidates.sort((a,b)=> (b.rating - a.rating) || (a.distanceKm - b.distanceKm));
+      }
+    } else if (sortPreference === 'nearby') {
+      // Prefer within 1–5 km, then expand to 8, 12, 15
+      const bands = [
+        {min:1, max:5},
+        {min:0, max:8},
+        {min:0, max:12},
+        {min:0, max:15}
+      ];
+      for (const b of bands) {
+        candidates = allOnline.filter(c => c.distanceKm >= b.min && c.distanceKm <= b.max);
+        if (candidates.length > 0) break;
+      }
+      if (candidates.length === 0) {
+        if (allOnline.length === 0) return res.status(400).json({ message: 'No nearby providers available.' });
+        // Fallback to nearest available
+        assignmentNote = 'Showing nearest available provider due to limited options.';
+        candidates = [...allOnline];
+      }
+      candidates.sort((a,b)=> (a.distanceKm - b.distanceKm) || (b.rating - a.rating));
+    } else if (sortPreference === 'cheapest') {
+      if (allOnline.length === 0) return res.status(400).json({ message: 'No available providers for this service.' });
+      candidates = [...allOnline];
+      candidates.sort((a,b)=> (a.rate - b.rate) || (b.rating - a.rating) || (a.distanceKm - b.distanceKm));
+    } else { // 'mix'
+      if (allOnline.length === 0) return res.status(400).json({ message: 'No providers currently available.' });
+      const proximityScore = (dKm) => Math.max(0, 5 - (dKm / 3)); // 0..15km -> 5..0
+      candidates = allOnline.map(c => ({
+        ...c,
+        mixScore: (c.rating * 0.6) + (proximityScore(c.distanceKm) * 0.4)
+      }));
+      candidates.sort((a,b)=> (b.mixScore - a.mixScore) || (a.distanceKm - b.distanceKm));
+    }
+
+    if (candidates.length === 0) {
+      return res.status(400).json({ message: 'No matching live providers available right now for the selected preference' });
+    }
+
+    // Prepare offers queue similar to multi-provider flow
+    const OFFER_TIMEOUT_MS = 10 * 1000; // 10 seconds per offer
+    const first = candidates[0];
+    const queue = candidates.slice(1).map(c => c.provider._id);
+    const now = new Date();
+
+    const booking = await Booking.create({
+      bookingId,
+      customer: customerId,
+      service: first.service._id,
+      serviceTemplate: first.service.template,
+      serviceCatalog: serviceCatalogId,
+      preferredDateTime,
+      serviceDetails: {
+        answers: serviceDetails.answers,
+        estimate: serviceDetails.estimate
+      },
+      sortPreference,
+      location: { type: 'Point', coordinates: [lng, lat] },
+      status: 'requested',
+      paymentStatus: 'pending',
+      overallStatus: 'pending',
+      pendingProviders: queue,
+      offers: [{ provider: first.provider._id, status: 'pending', offeredAt: now }],
+      providerResponseTimeout: new Date(now.getTime() + OFFER_TIMEOUT_MS),
+      autoAssignMessage: assignmentNote || 'Searching for the best available provider...'
+    });
+
+    res.status(201).json({ 
+      message: assignmentNote || 'Booking created! Waiting for provider response...', 
+      booking,
+      assignmentNote
+    });
+
+  } catch (error) {
+    console.error('Create booking error:', error);
+    res.status(500).json({ message: 'Error creating booking', error: error.message });
   }
 };

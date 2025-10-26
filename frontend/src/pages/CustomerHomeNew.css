@@ -1,0 +1,329 @@
+.customer-home-new {
+  min-height: 100vh;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+.customer-home-container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 40px 20px;
+}
+
+/* Step 1: Service Selection */
+.services-section {
+  text-align: center;
+  margin-bottom: 40px;
+}
+
+.services-section h1 {
+  font-size: 36px;
+  color: white;
+  margin-bottom: 10px;
+}
+
+.services-section .subtitle {
+  font-size: 18px;
+  color: rgba(255, 255, 255, 0.9);
+  margin-bottom: 40px;
+}
+
+.services-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 25px;
+  margin-top: 30px;
+}
+
+.service-catalog-card {
+  background: white;
+  border-radius: 16px;
+  padding: 30px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  position: relative;
+  overflow: hidden;
+}
+
+.service-catalog-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  transform: scaleX(0);
+  transition: transform 0.3s ease;
+}
+
+.service-catalog-card:hover::before {
+  transform: scaleX(1);
+}
+
+.service-catalog-card:hover {
+  transform: translateY(-8px);
+  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.15);
+}
+
+.service-icon {
+  font-size: 48px;
+  display: block;
+  margin-bottom: 15px;
+}
+
+.service-catalog-card h3 {
+  font-size: 20px;
+  color: #333;
+  margin-bottom: 8px;
+}
+
+.service-catalog-card .category {
+  font-size: 13px;
+  color: #667eea;
+  font-weight: 600;
+  margin-bottom: 12px;
+}
+
+.service-catalog-card .description {
+  font-size: 14px;
+  color: #666;
+  line-height: 1.5;
+  margin-bottom: 15px;
+}
+
+.service-catalog-card .starting-price {
+  font-size: 18px;
+  font-weight: 700;
+  color: #2c3e50;
+  margin-bottom: 15px;
+}
+
+.btn-select-service {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.3s;
+}
+
+.btn-select-service:hover {
+  opacity: 0.9;
+}
+
+/* Back Button */
+.btn-back {
+  background: rgba(255, 255, 255, 0.2);
+  color: white;
+  border: 2px solid white;
+  padding: 10px 20px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  margin-bottom: 20px;
+  transition: all 0.3s;
+}
+
+.btn-back:hover {
+  background: white;
+  color: #667eea;
+}
+
+/* Step 2 & 3: Questionnaire and Estimate */
+.questionnaire-section,
+.estimate-section {
+  background: transparent;
+}
+
+/* Step 4: Schedule & Sort */
+.schedule-section {
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+.schedule-card {
+  background: white;
+  border-radius: 16px;
+  padding: 40px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+}
+
+.schedule-card h2 {
+  text-align: center;
+  font-size: 28px;
+  margin-bottom: 30px;
+  color: #333;
+}
+
+.estimate-summary-banner {
+  background: linear-gradient(135deg, #667eea22 0%, #764ba222 100%);
+  border-radius: 12px;
+  padding: 20px;
+  margin-bottom: 30px;
+}
+
+.summary-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 0;
+}
+
+.summary-item .label {
+  font-weight: 600;
+  color: #555;
+}
+
+.summary-item .value {
+  font-weight: 700;
+  color: #333;
+}
+
+.summary-item .value.price {
+  font-size: 24px;
+  color: #667eea;
+}
+
+.summary-item.payment-info {
+  justify-content: center;
+  border-top: 2px dashed #ddd;
+  margin-top: 10px;
+  padding-top: 15px;
+  color: #4caf50;
+  font-weight: 600;
+}
+
+.form-group {
+  margin-bottom: 30px;
+}
+
+.form-group label {
+  display: block;
+  font-size: 16px;
+  font-weight: 600;
+  margin-bottom: 12px;
+  color: #333;
+}
+
+.form-group input[type="datetime-local"] {
+  width: 100%;
+  padding: 14px;
+  border: 2px solid #e0e0e0;
+  border-radius: 8px;
+  font-size: 15px;
+  transition: border-color 0.3s;
+}
+
+.form-group input[type="datetime-local"]:focus {
+  outline: none;
+  border-color: #667eea;
+}
+
+.sort-options {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 15px;
+}
+
+.sort-option {
+  display: block;
+  cursor: pointer;
+}
+
+.sort-option input[type="radio"] {
+  display: none;
+}
+
+.sort-option .option-content {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px;
+  border: 2px solid #e0e0e0;
+  border-radius: 12px;
+  transition: all 0.3s;
+  background: white;
+}
+
+.sort-option:hover .option-content {
+  border-color: #667eea;
+  background: #f8f9fa;
+}
+
+.sort-option.selected .option-content {
+  border-color: #667eea;
+  background: linear-gradient(135deg, #667eea22 0%, #764ba222 100%);
+}
+
+.sort-option .icon {
+  font-size: 28px;
+}
+
+.sort-option .text {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.sort-option .text strong {
+  font-size: 15px;
+  color: #333;
+}
+
+.sort-option .text small {
+  font-size: 12px;
+  color: #666;
+}
+
+.btn-confirm-booking {
+  width: 100%;
+  padding: 18px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border: none;
+  border-radius: 12px;
+  font-size: 18px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.3s;
+  margin-bottom: 15px;
+}
+
+.btn-confirm-booking:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(102, 126, 234, 0.4);
+}
+
+.btn-confirm-booking:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.note {
+  text-align: center;
+  font-size: 13px;
+  color: #666;
+  margin: 0;
+}
+
+@media (max-width: 768px) {
+  .services-section h1 {
+    font-size: 28px;
+  }
+
+  .services-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .schedule-card {
+    padding: 25px;
+  }
+
+  .sort-options {
+    grid-template-columns: 1fr;
+  }
+}

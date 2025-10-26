@@ -31,6 +31,7 @@
     "mongoose": "^8.18.2",
     "morgan": "^1.10.1",
     "multer": "^2.0.2",
+    "razorpay": "^2.9.6",
     "socket.io": "^4.8.1",
     "twilio": "^5.10.2"
   },

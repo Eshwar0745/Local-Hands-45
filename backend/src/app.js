@@ -19,6 +19,7 @@ import adminRoutes from './routes/adminRoutes.js';
 import catalogRoutes from './routes/catalogRoutes.js';
 import uploadRoutes from './routes/uploadRoutes.js';
 import healthRoutes from './routes/healthRoutes.js';
+import serviceCatalogRoutes from './routes/serviceCatalogRoutes.js';
 import Booking from './models/Booking.js';
 
 dotenv.config();
@@ -66,6 +67,7 @@ app.use('/api/mobile-auth', mobileAuthRoutes);
 app.use('/api/providers', providerRoutes);
 app.use('/api/bookings', bookingRoutes);
 app.use('/api/services', serviceRoutes);
+app.use('/api/service-catalogs', serviceCatalogRoutes);
 app.use('/api/reviews', reviewRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/ratings', ratingsRoutes);

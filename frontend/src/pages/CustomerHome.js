@@ -4,6 +4,7 @@ import EnhancedRatingModal from "../components/EnhancedRatingModal";
 import WaitingScreen from "../components/WaitingScreen";
 import { RatingsAPI } from "../services/api.extras";
 import ServiceCard from "../components/ServiceCard";
+import MapComponent from "../components/MapComponent";
 import {
   FiAlertCircle,
   FiCalendar,
@@ -14,6 +15,7 @@ import {
   FiUser,
   FiStar,
   FiMapPin,
+  FiTag,
 } from "react-icons/fi";
 
 // ✅ Haversine formula for distance (km)
@@ -51,6 +53,15 @@ export default function CustomerHome() {
   const [sortBy, setSortBy] = useState("balanced"); // nearest | rating | balanced
   const [providerSelect, setProviderSelect] = useState({ open: false, aggregate: null });
   const [waitingBooking, setWaitingBooking] = useState(null); // bookingId while waiting for acceptance
+  
+  // ✅ Questionnaire flow state
+  const [serviceCatalog, setServiceCatalog] = useState(null);
+  const [questionnaireAnswers, setQuestionnaireAnswers] = useState({});
+  const [estimate, setEstimate] = useState(null);
+  const [showQuestionnaire, setShowQuestionnaire] = useState(false);
+  const [sortPreference, setSortPreference] = useState("nearby");
+  const [trackTarget, setTrackTarget] = useState(null); // booking to track
+  const [trackData, setTrackData] = useState(null);
 
   const loadBookings = () => {
     API.get("/bookings/mine").then((r) => {
@@ -111,6 +122,8 @@ export default function CustomerHome() {
       const distB = b.distance || 999999;
       const ratingA = a.provider?.rating || 0;
       const ratingB = b.provider?.rating || 0;
+      const priceA = typeof a.price === 'number' ? a.price : Number.MAX_SAFE_INTEGER;
+      const priceB = typeof b.price === 'number' ? b.price : Number.MAX_SAFE_INTEGER;
 
       if (sortBy === 'nearest') {
         // Sort by ascending distance
@@ -119,6 +132,11 @@ export default function CustomerHome() {
         // Sort by descending rating
         if (ratingB !== ratingA) return ratingB - ratingA;
         // Tiebreaker: nearest
+        return distA - distB;
+      } else if (sortBy === 'cheapest') {
+        // Sort by lowest price, then higher rating, then nearer
+        if (priceA !== priceB) return priceA - priceB;
+        if (ratingB !== ratingA) return ratingB - ratingA;
         return distA - distB;
       } else { // balanced
         // Balanced formula: (distance × 0.7) + ((5 - rating) × 0.3)
@@ -140,8 +158,14 @@ export default function CustomerHome() {
   const aggregated = useMemo(() => {
     const map = new Map();
     const sorted = sortServices(services); // Use sorted services
+
+    const norm = (s) => String(s || "").toLowerCase().trim().replace(/\s+/g, ' ');
+
     for (const srv of sorted) {
-      const key = srv.template || `${srv.name}::${srv.category}`;
+      const templateId = srv.template && typeof srv.template === 'object' && srv.template._id
+        ? String(srv.template._id)
+        : (srv.template ? String(srv.template) : null);
+      const key = templateId ? templateId : `${norm(srv.name)}::${norm(srv.category)}`;
       if (!map.has(key)) {
         map.set(key, {
           key,
@@ -156,6 +180,10 @@ export default function CustomerHome() {
         const agg = map.get(key);
         agg.services.push(srv);
         agg.providerCount = agg.services.length;
+        // keep the minimum price across providers for display
+        if (typeof srv.price === 'number') {
+          agg.basePrice = Math.min(agg.basePrice ?? srv.price, srv.price);
+        }
       }
     }
     return Array.from(map.values());
@@ -194,8 +222,52 @@ export default function CustomerHome() {
     return () => clearInterval(pollInterval);
   }, [waitingBooking]);
 
-  const openBook = (aggregate) => {
+  const openBook = async (aggregate) => {
     if (!aggregate) return;
+    
+    // ✅ Try to fetch service catalog for questionnaire
+    try {
+      const catalogResponse = await API.get('/service-catalogs');
+      const catalogs = Array.isArray(catalogResponse.data)
+        ? catalogResponse.data
+        : (catalogResponse.data.catalogs || []);
+      
+      console.log('Looking for catalog match:', { 
+        aggregateName: aggregate.name, 
+        aggregateCategory: aggregate.category,
+        availableCatalogs: catalogs.map(c => ({ name: c.name, category: c.category }))
+      });
+      
+      // Find matching catalog by name (partial match) or exact category
+      const matchingCatalog = catalogs.find(cat => {
+        const nameMatch = cat.name.toLowerCase().includes(aggregate.name.toLowerCase()) ||
+                         aggregate.name.toLowerCase().includes(cat.name.toLowerCase());
+        const categoryMatch = cat.category.toLowerCase() === aggregate.category.toLowerCase();
+        
+        console.log('Checking catalog:', cat.name, { nameMatch, categoryMatch });
+        return nameMatch || categoryMatch;
+      });
+      
+      console.log('Matching catalog found:', matchingCatalog?.name);
+      
+      if (matchingCatalog && matchingCatalog.questions && matchingCatalog.questions.length > 0) {
+        // Has questionnaire - show questionnaire flow
+        console.log('✅ Showing questionnaire for:', matchingCatalog.name);
+        setServiceCatalog(matchingCatalog);
+        setQuestionnaireAnswers({});
+        setEstimate(null);
+        setShowQuestionnaire(true);
+        setBookingModal({ open: true, service: aggregate.services[0] });
+        return;
+      }
+    } catch (error) {
+      console.log("No service catalog found, using regular booking flow", error);
+    }
+    
+    // ✅ No questionnaire - use regular booking flow
+    console.log('Using regular booking flow for:', aggregate.name);
+    setShowQuestionnaire(false);
+    setServiceCatalog(null);
     if (aggregate.services.length === 1) {
       setBookingModal({ open: true, service: aggregate.services[0] });
     } else {
@@ -212,6 +284,79 @@ export default function CustomerHome() {
   useEffect(() => {
     loadBookings();
   }, []);
+
+  // ✅ Poll tracking data when tracking modal open
+  useEffect(() => {
+    let iv;
+    const fetchTracking = async () => {
+      if (!trackTarget) return;
+      try {
+        const { data } = await API.get(`/bookings/${trackTarget._id}/tracking`);
+        setTrackData(data);
+      } catch (e) {
+        // Ignore unauthorized or transient errors
+      }
+    };
+    if (trackTarget) {
+      fetchTracking();
+      iv = setInterval(fetchTracking, 5000);
+    }
+    return () => iv && clearInterval(iv);
+  }, [trackTarget]);
+  
+  // ✅ Handle questionnaire input change
+  const handleQuestionnaireChange = (questionId, value) => {
+    setQuestionnaireAnswers(prev => ({
+      ...prev,
+      [questionId]: value
+    }));
+  };
+  
+  // ✅ Calculate estimate from questionnaire
+  const handleCalculateEstimate = async () => {
+    if (!serviceCatalog) return;
+    
+    setBookingLoading(true);
+    setBookingMsg("");
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        alert('Please login to continue');
+        window.location.href = '/login';
+        return;
+      }
+      
+      const response = await API.post('/bookings/calculate-estimate', {
+        serviceCatalogId: serviceCatalog._id,
+        answers: questionnaireAnswers
+      });
+      
+      setEstimate(response.data.estimate);
+      setBookingMsg("Estimate calculated successfully!");
+    } catch (error) {
+      if (error.response?.status === 401) {
+        alert('Session expired. Please login again.');
+        localStorage.removeItem('token');
+        window.location.href = '/login';
+        return;
+      }
+      setBookingMsg(error?.response?.data?.message || "Failed to calculate estimate");
+    } finally {
+      setBookingLoading(false);
+    }
+  };
+  
+  // ✅ Validate questionnaire
+  const validateQuestionnaire = () => {
+    if (!serviceCatalog) return true;
+    
+    for (const question of serviceCatalog.questions) {
+      if (question.required && !questionnaireAnswers[question.id]) {
+        return false;
+      }
+    }
+    return true;
+  };
 
   const getStatusColor = (status) => {
     switch (status) {
@@ -290,6 +435,13 @@ export default function CustomerHome() {
                     Highest Rating
                   </button>
                   <button
+                    onClick={() => setSortBy('cheapest')}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium border transition-all duration-300 flex items-center gap-2 ${sortBy === 'cheapest' ? 'bg-brand-primary text-white border-brand-primary shadow-lg dark:shadow-blue-500/50' : 'bg-white dark:bg-gray-800 text-brand-gray-700 dark:text-gray-300 border-brand-gray-200 dark:border-gray-700 hover:bg-brand-gray-50 dark:hover:bg-gray-700 dark:hover:border-blue-500/50'}`}
+                  >
+                    <FiTag className="w-4 h-4" />
+                    Cheapest
+                  </button>
+                  <button
                     onClick={() => setSortBy('balanced')}
                     className={`px-4 py-2 rounded-lg text-sm font-medium border transition-all duration-300 flex items-center gap-2 ${sortBy === 'balanced' ? 'bg-brand-primary text-white border-brand-primary shadow-lg dark:shadow-blue-500/50' : 'bg-white dark:bg-gray-800 text-brand-gray-700 dark:text-gray-300 border-brand-gray-200 dark:border-gray-700 hover:bg-brand-gray-50 dark:hover:bg-gray-700 dark:hover:border-blue-500/50'}`}
                   >
@@ -337,20 +489,21 @@ export default function CustomerHome() {
 
           {!loading && !error && (
             <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
-              {sortedServices
-                .filter(s => {
-                  const matchesCategory = activeCategory === 'all' || s.category === activeCategory;
-                  const matchesSearch = !searchTerm || s.name.toLowerCase().includes(searchTerm.toLowerCase());
-                  return matchesCategory && matchesSearch;
-                })
-                .map(service => (
-                  <ServiceCard
-                    key={service._id}
-                    service={service}
-                    onBook={() => setBookingModal({ open: true, service })}
-                    variant="compact"
-                  />
-                ))}
+              {filteredAggregated.map(agg => (
+                <ServiceCard
+                  key={agg.key}
+                  service={{
+                    _id: agg.key,
+                    name: agg.name,
+                    category: agg.category,
+                    price: agg.basePrice,
+                    description: `${agg.providerCount} provider${agg.providerCount>1?'s':''} available`,
+                    template: agg.template
+                  }}
+                  onBook={() => openBook(agg)}
+                  variant="compact"
+                />
+              ))}
             </div>
           )}
 
@@ -389,7 +542,15 @@ export default function CustomerHome() {
                           </div>
                         </div>
                         <button
-                          onClick={()=>{ setProviderSelect({ open:false, aggregate:null }); setBookingModal({ open:true, service: srv }); }}
+                          onClick={()=>{ 
+                            setProviderSelect({ open:false, aggregate:null }); 
+                            openBook({
+                              name: srv.name,
+                              category: srv.category,
+                              services: [srv],
+                              template: srv.template
+                            });
+                          }}
                           className="px-3 py-1.5 rounded-md bg-brand-primary dark:bg-blue-500 text-white text-xs font-medium hover:bg-blue-600 dark:hover:bg-blue-600 transition-all duration-300 dark:shadow-glow-blue"
                         >Select</button>
                       </div>
@@ -403,14 +564,22 @@ export default function CustomerHome() {
         {/* Booking Modal */}
         {bookingModal.open && (
           <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4 transition-opacity duration-300">
-            <div className="bg-white dark:bg-gray-800 w-full max-w-md rounded-2xl shadow-2xl dark:shadow-dark-glow animate-scale-in border border-transparent dark:border-gray-700 transition-all duration-300">
+            <div className="bg-white dark:bg-gray-800 w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl shadow-2xl dark:shadow-dark-glow animate-scale-in border border-transparent dark:border-gray-700 transition-all duration-300">
               <div className="p-6">
                 <div className="flex items-center justify-between mb-6">
                   <h3 className="text-xl font-semibold text-brand-gray-900 dark:text-white">
-                    Book Service
+                    {showQuestionnaire && !estimate ? "Service Details" : 
+                     showQuestionnaire && estimate ? "Review & Book" :
+                     "Book Service"}
                   </h3>
                   <button
-                    onClick={() => setBookingModal({ open: false, service: null })}
+                    onClick={() => {
+                      setBookingModal({ open: false, service: null });
+                      setShowQuestionnaire(false);
+                      setServiceCatalog(null);
+                      setQuestionnaireAnswers({});
+                      setEstimate(null);
+                    }}
                     className="p-2 hover:bg-brand-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors duration-300"
                   >
                     <FiX className="w-5 h-5 text-brand-gray-500 dark:text-gray-400" />
@@ -419,20 +588,33 @@ export default function CustomerHome() {
 
                 <div className="mb-6 p-4 bg-brand-gray-50 dark:bg-gray-700/40 rounded-xl border border-transparent dark:border-gray-600">
                   <h4 className="font-medium text-brand-gray-900 dark:text-gray-100">
-                    {bookingModal.service?.name}
+                    {serviceCatalog?.name || bookingModal.service?.name}
                   </h4>
                   <p className="text-sm text-brand-gray-600 dark:text-gray-400 capitalize">
-                    {bookingModal.service?.category}
+                    {serviceCatalog?.category || bookingModal.service?.category}
                   </p>
-                  <p className="text-lg font-bold text-brand-primary dark:text-blue-400 mt-2">
-                    ₹{bookingModal.service?.price}
-                  </p>
+                  {!showQuestionnaire && (
+                    <p className="text-lg font-bold text-brand-primary dark:text-blue-400 mt-2">
+                      ₹{bookingModal.service?.price}
+                    </p>
+                  )}
+                  {estimate && (
+                    <div className="mt-3 pt-3 border-t border-brand-gray-200 dark:border-gray-600">
+                      <p className="text-sm text-brand-gray-600 dark:text-gray-400 mb-1">Estimated Cost:</p>
+                      <p className="text-2xl font-bold text-green-600 dark:text-green-400">
+                        ₹{estimate.total}
+                      </p>
+                      <p className="text-xs text-brand-gray-500 dark:text-gray-500 mt-1">
+                        Service: ₹{estimate.serviceCharge} + Visit: ₹{estimate.visitCharge} + Platform: ₹{estimate.platformFee}
+                      </p>
+                    </div>
+                  )}
                 </div>
 
                 {bookingMsg && (
                   <div
                     className={`mb-4 p-3 rounded-lg text-sm transition-all duration-300 ${
-                      bookingMsg.includes("requested")
+                      bookingMsg.includes("requested") || bookingMsg.includes("successfully")
                         ? "bg-success/10 dark:bg-success/20 text-success dark:text-green-400 border border-success/30 dark:shadow-glow-blue"
                         : "bg-error/10 dark:bg-error/20 text-error dark:text-red-400 border border-error/30"
                     }`}
@@ -441,64 +623,247 @@ export default function CustomerHome() {
                   </div>
                 )}
 
-                <form
-                  onSubmit={async (e) => {
-                    e.preventDefault();
-                    setBookingLoading(true);
-                    setBookingMsg("");
-                    try {
-                      const response = await API.post("/bookings/create", {
-                        serviceId: bookingModal.service._id,
-                        lng: location.lng,
-                        lat: location.lat,
-                        scheduledAt,
-                      });
-                      setBookingMsg("Booking requested successfully!");
-                      loadBookings();
-                      // Show waiting screen instead of closing modal immediately
-                      setTimeout(() => {
-                        setBookingModal({ open: false, service: null });
-                        setWaitingBooking(response.data.booking._id);
-                      }, 1000);
-                    } catch (er) {
-                      setBookingMsg(
-                        er?.response?.data?.message || "Failed to create booking"
-                      );
-                    } finally {
-                      setBookingLoading(false);
-                    }
-                  }}
-                  className="space-y-4"
-                >
-                  <div>
-                    <label className="block text-sm font-medium text-brand-gray-700 dark:text-gray-300 mb-2">
-                      Preferred Date & Time
-                    </label>
-                    <input
-                      type="datetime-local"
-                      value={scheduledAt}
-                      onChange={(e) => setScheduledAt(e.target.value)}
-                      className="w-full px-4 py-3 border border-brand-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-800 text-brand-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-brand-primary dark:focus:ring-blue-500 focus:border-transparent transition-all duration-300"
-                      required
-                    />
-                  </div>
-
-                  <div className="flex gap-3 pt-4">
+                {/* ✅ Show Questionnaire if available and no estimate yet */}
+                {showQuestionnaire && !estimate && serviceCatalog?.questions && (
+                  <div className="space-y-4 mb-6 max-h-96 overflow-y-auto pr-2">
+                    {serviceCatalog.questions.map((question) => (
+                      <div key={question.id} className="space-y-2">
+                        <label className="block text-sm font-medium text-brand-gray-700 dark:text-gray-300">
+                          {question.question}
+                          {question.required && <span className="text-red-500 ml-1">*</span>}
+                        </label>
+                        
+                        {question.type === 'radio' && (
+                          <div className="space-y-2">
+                            {question.options.map((option) => (
+                              <label key={option} className="flex items-center gap-2 p-3 border border-brand-gray-200 dark:border-gray-600 rounded-lg cursor-pointer hover:bg-brand-gray-50 dark:hover:bg-gray-700 transition-colors">
+                                <input
+                                  type="radio"
+                                  name={question.id}
+                                  value={option}
+                                  checked={questionnaireAnswers[question.id] === option}
+                                  onChange={(e) => handleQuestionnaireChange(question.id, e.target.value)}
+                                  className="text-brand-primary dark:text-blue-500"
+                                />
+                                <span className="text-brand-gray-900 dark:text-gray-100">{option}</span>
+                              </label>
+                            ))}
+                          </div>
+                        )}
+                        
+                        {question.type === 'checkbox' && (
+                          <div className="space-y-2">
+                            {question.options.map((option) => (
+                              <label key={option} className="flex items-center gap-2 p-3 border border-brand-gray-200 dark:border-gray-600 rounded-lg cursor-pointer hover:bg-brand-gray-50 dark:hover:bg-gray-700 transition-colors">
+                                <input
+                                  type="checkbox"
+                                  value={option}
+                                  checked={(questionnaireAnswers[question.id] || []).includes(option)}
+                                  onChange={(e) => {
+                                    const current = questionnaireAnswers[question.id] || [];
+                                    const updated = e.target.checked
+                                      ? [...current, option]
+                                      : current.filter(v => v !== option);
+                                    handleQuestionnaireChange(question.id, updated);
+                                  }}
+                                  className="text-brand-primary dark:text-blue-500"
+                                />
+                                <span className="text-brand-gray-900 dark:text-gray-100">{option}</span>
+                              </label>
+                            ))}
+                          </div>
+                        )}
+                        
+                        {question.type === 'number' && (
+                          <input
+                            type="number"
+                            min={question.min}
+                            max={question.max}
+                            value={questionnaireAnswers[question.id] || ''}
+                            onChange={(e) => handleQuestionnaireChange(question.id, parseInt(e.target.value))}
+                            className="w-full px-4 py-3 border border-brand-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-800 text-brand-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-brand-primary dark:focus:ring-blue-500 focus:border-transparent"
+                            placeholder={question.placeholder || ''}
+                            required={question.required}
+                          />
+                        )}
+                        
+                        {question.type === 'text' && (
+                          <textarea
+                            value={questionnaireAnswers[question.id] || ''}
+                            onChange={(e) => handleQuestionnaireChange(question.id, e.target.value)}
+                            className="w-full px-4 py-3 border border-brand-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-800 text-brand-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-brand-primary dark:focus:ring-blue-500 focus:border-transparent"
+                            placeholder={question.placeholder || ''}
+                            rows="3"
+                            required={question.required}
+                          />
+                        )}
+                        
+                        {question.type === 'select' && (
+                          <select
+                            value={questionnaireAnswers[question.id] || ''}
+                            onChange={(e) => handleQuestionnaireChange(question.id, e.target.value)}
+                            className="w-full px-4 py-3 border border-brand-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-800 text-brand-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-brand-primary dark:focus:ring-blue-500 focus:border-transparent"
+                            required={question.required}
+                          >
+                            <option value="">Select...</option>
+                            {question.options.map((option) => (
+                              <option key={option} value={option}>{option}</option>
+                            ))}
+                          </select>
+                        )}
+                      </div>
+                    ))}
+                    
                     <button
                       type="button"
-                      onClick={() => setBookingModal({ open: false, service: null })}
-                      className="flex-1 px-4 py-3 border border-brand-gray-300 dark:border-gray-600 text-brand-gray-700 dark:text-gray-300 font-medium rounded-xl hover:bg-brand-gray-50 dark:hover:bg-gray-700 transition-all duration-300"
+                      onClick={handleCalculateEstimate}
+                      disabled={!validateQuestionnaire() || bookingLoading}
+                      className="w-full px-4 py-3 bg-green-600 dark:bg-green-500 text-white font-medium rounded-xl hover:bg-green-700 dark:hover:bg-green-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300"
                     >
-                      Cancel
-                    </button>
-                    <button
-                      disabled={bookingLoading}
-                      className="flex-1 px-4 py-3 bg-brand-primary dark:bg-blue-500 text-white font-medium rounded-xl hover:bg-blue-600 dark:hover:bg-blue-600 disabled:opacity-50 transition-all duration-300 dark:shadow-glow-blue"
-                    >
-                      {bookingLoading ? "Requesting..." : "Confirm Booking"}
+                      {bookingLoading ? "Calculating..." : "Calculate Estimate"}
                     </button>
                   </div>
-                </form>
+                )}
+
+                {/* ✅ Show Booking Form (always for non-questionnaire, after estimate for questionnaire) */}
+                {(!showQuestionnaire || estimate) && (
+                  <form
+                    onSubmit={async (e) => {
+                      e.preventDefault();
+                      setBookingLoading(true);
+                      setBookingMsg("");
+                      try {
+                        let response;
+                        if (showQuestionnaire && estimate) {
+                          // Questionnaire booking
+                          response = await API.post("/bookings/create-with-questionnaire", {
+                            serviceCatalogId: serviceCatalog._id,
+                            preferredDateTime: scheduledAt,
+                            serviceDetails: {
+                              answers: questionnaireAnswers,
+                              estimate
+                            },
+                            sortPreference: sortPreference,
+                            location: {
+                              lat: location.lat,
+                              lng: location.lng
+                            }
+                          });
+                        } else {
+                          // Regular booking
+                          response = await API.post("/bookings/create", {
+                            serviceId: bookingModal.service._id,
+                            lng: location.lng,
+                            lat: location.lat,
+                            scheduledAt,
+                          });
+                        }
+                        setBookingMsg("Booking requested successfully!");
+                        loadBookings();
+                        setTimeout(() => {
+                          setBookingModal({ open: false, service: null });
+                          setShowQuestionnaire(false);
+                          setServiceCatalog(null);
+                          setQuestionnaireAnswers({});
+                          setEstimate(null);
+                          setWaitingBooking(response.data.booking._id);
+                        }, 1000);
+                      } catch (er) {
+                        if (er.response?.status === 401) {
+                          alert('Session expired. Please login again.');
+                          localStorage.removeItem('token');
+                          window.location.href = '/login';
+                          return;
+                        }
+                        setBookingMsg(
+                          er?.response?.data?.message || "Failed to create booking"
+                        );
+                      } finally {
+                        setBookingLoading(false);
+                      }
+                    }}
+                    className="space-y-4"
+                  >
+                    <div>
+                      <label className="block text-sm font-medium text-brand-gray-700 dark:text-gray-300 mb-2">
+                        Preferred Date & Time
+                      </label>
+                      <input
+                        type="datetime-local"
+                        value={scheduledAt}
+                        onChange={(e) => setScheduledAt(e.target.value)}
+                        className="w-full px-4 py-3 border border-brand-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-800 text-brand-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-brand-primary dark:focus:ring-blue-500 focus:border-transparent transition-all duration-300"
+                        required
+                      />
+                    </div>
+
+                    {/* ✅ Provider preference for questionnaire bookings */}
+                    {showQuestionnaire && estimate && (
+                      <div>
+                        <label className="block text-sm font-medium text-brand-gray-700 dark:text-gray-300 mb-2">
+                          Provider Preference
+                        </label>
+                        <div className="grid grid-cols-2 gap-2">
+                          {[
+                            { value: 'nearby', label: 'Nearest 📍', desc: 'Closest to you' },
+                            { value: 'rating', label: 'Highest Rated ⭐', desc: 'Best reviews' },
+                            { value: 'mix', label: 'Best Match 🎯', desc: 'Balanced' },
+                            { value: 'cheapest', label: 'Cheapest 💰', desc: 'Best price' }
+                          ].map(pref => (
+                            <label
+                              key={pref.value}
+                              className={`p-3 border rounded-lg cursor-pointer transition-all ${
+                                sortPreference === pref.value
+                                  ? 'border-brand-primary bg-brand-primary/10 dark:bg-blue-500/20'
+                                  : 'border-brand-gray-200 dark:border-gray-600 hover:bg-brand-gray-50 dark:hover:bg-gray-700'
+                              }`}
+                            >
+                              <input
+                                type="radio"
+                                name="sortPreference"
+                                value={pref.value}
+                                checked={sortPreference === pref.value}
+                                onChange={(e) => setSortPreference(e.target.value)}
+                                className="sr-only"
+                              />
+                              <div className="text-sm font-medium text-brand-gray-900 dark:text-gray-100">{pref.label}</div>
+                              <div className="text-xs text-brand-gray-500 dark:text-gray-400">{pref.desc}</div>
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="flex gap-3 pt-4">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (estimate && showQuestionnaire) {
+                            // Go back to questionnaire
+                            setEstimate(null);
+                            setBookingMsg("");
+                          } else {
+                            // Close modal
+                            setBookingModal({ open: false, service: null });
+                            setShowQuestionnaire(false);
+                            setServiceCatalog(null);
+                            setQuestionnaireAnswers({});
+                            setEstimate(null);
+                          }
+                        }}
+                        className="flex-1 px-4 py-3 border border-brand-gray-300 dark:border-gray-600 text-brand-gray-700 dark:text-gray-300 font-medium rounded-xl hover:bg-brand-gray-50 dark:hover:bg-gray-700 transition-all duration-300"
+                      >
+                        {estimate && showQuestionnaire ? "Back" : "Cancel"}
+                      </button>
+                      <button
+                        disabled={bookingLoading}
+                        className="flex-1 px-4 py-3 bg-brand-primary dark:bg-blue-500 text-white font-medium rounded-xl hover:bg-blue-600 dark:hover:bg-blue-600 disabled:opacity-50 transition-all duration-300 dark:shadow-glow-blue"
+                      >
+                        {bookingLoading ? "Requesting..." : "Confirm Booking"}
+                      </button>
+                    </div>
+                  </form>
+                )}
               </div>
             </div>
           </div>
@@ -608,6 +973,12 @@ export default function CustomerHome() {
                           <button
                             onClick={async ()=>{ setLoadingProfile(true); try { const { data } = await API.get(`/providers/${b.provider._id}/profile`); setProviderProfile(data); } catch { alert('Failed to load provider profile'); } finally { setLoadingProfile(false); } }}
                             className='text-brand-primary dark:text-blue-400 hover:text-blue-600 dark:hover:text-blue-500 text-xs underline transition-colors duration-300'>View Profile</button>
+                          {(b.status === 'in_progress' || b.status === 'accepted') && (
+                            <button
+                              onClick={() => { setTrackTarget(b); }}
+                              className='text-brand-primary dark:text-blue-400 hover:text-blue-600 dark:hover:text-blue-500 text-xs underline transition-colors duration-300'
+                            >Track</button>
+                          )}
                         </div>
                       )}
                     </div>
@@ -693,6 +1064,31 @@ export default function CustomerHome() {
             } finally { setSubmittingRating(false); }
           }}
         />
+
+        {/* 🗺️ Tracking Modal */}
+        {trackTarget && (
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={()=>{ setTrackTarget(null); setTrackData(null); }}>
+            <div className="bg-white dark:bg-gray-800 rounded-2xl w-full max-w-2xl p-6 shadow-2xl dark:shadow-dark-glow border border-transparent dark:border-gray-700" onClick={e=>e.stopPropagation()}>
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-xl font-semibold text-brand-gray-900 dark:text-white">Live Tracking #{trackTarget.bookingId}</h3>
+                <button onClick={()=>{ setTrackTarget(null); setTrackData(null); }} className="text-sm text-brand-gray-500 dark:text-gray-400 hover:text-brand-gray-800 dark:hover:text-gray-200">Close</button>
+              </div>
+              <div className="mb-3 text-sm text-brand-gray-600 dark:text-gray-400">
+                {trackData?.stale ? 'Waiting for provider updates…' : 'Provider is sharing live location'}
+                {trackData?.etaMinutes != null && (
+                  <span className="ml-2 font-medium text-brand-gray-900 dark:text-gray-100">ETA ~{trackData.etaMinutes} min</span>
+                )}
+              </div>
+              <MapComponent
+                customer={trackData?.customer ? [trackData.customer.lat, trackData.customer.lng] : null}
+                provider={trackData?.provider ? [trackData.provider.lat, trackData.provider.lng] : null}
+                distanceKm={trackData?.distanceKm ?? null}
+                etaMinutes={trackData?.etaMinutes ?? null}
+                stale={!!trackData?.stale}
+              />
+            </div>
+          </div>
+        )}
 
         {/* ✅ Waiting Screen - Show while provider accepts booking */}
         <WaitingScreen

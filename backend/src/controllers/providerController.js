@@ -166,11 +166,21 @@ export const updateLocation = async (req, res) => {
     provider.lastLocationUpdate = new Date();
     provider.isLiveTracking = true;
 
-    // Optional distance from customer
+    // Optional distance from customer (compute haversine if customerId provided)
     if (customerId) {
-      const customer = await User.findById(customerId);
-      if (customer && customer.location) {
-        provider.distanceFromCustomer = provider.getDistanceFromCustomer(customer.location);
+      const customer = await User.findById(customerId).select("location");
+      if (customer?.location?.coordinates?.length === 2) {
+        const [clng, clat] = customer.location.coordinates;
+        const R = 6371; // km
+        const dLat = ((clat - lat) * Math.PI) / 180;
+        const dLng = ((clng - lng) * Math.PI) / 180;
+        const a =
+          Math.sin(dLat / 2) ** 2 +
+          Math.cos((lat * Math.PI) / 180) *
+            Math.cos((clat * Math.PI) / 180) *
+            Math.sin(dLng / 2) ** 2;
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        provider.distanceFromCustomer = Number((R * c).toFixed(2));
       }
     }
     await provider.save();
