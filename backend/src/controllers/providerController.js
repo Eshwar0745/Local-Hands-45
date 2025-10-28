@@ -98,12 +98,13 @@ export const setAvailability = async (req, res) => {
     const updateFields = {
       isAvailable: !!isAvailable,
       isLiveTracking: !!isAvailable,
+      isOnline: !!isAvailable
     };
 
     // ✅ Capture location if provided
     if (isAvailable && typeof lng === "number" && typeof lat === "number") {
       updateFields.location = { type: "Point", coordinates: [lng, lat] };
-      updateFields.lastLocationUpdate = new Date();
+      updateFields.locationUpdatedAt = new Date();
     }
 
     const user = await User.findByIdAndUpdate(req.userId, updateFields, { new: true }).select(
@@ -155,18 +156,30 @@ export const setAvailability = async (req, res) => {
 export const updateLocation = async (req, res) => {
   try {
     const { lng, lat, bookingId, customerId } = req.body;
-    if (typeof lng !== "number" || typeof lat !== "number")
+    if (typeof lng !== "number" || typeof lat !== "number") {
       return res.status(400).json({ message: "lng/lat must be numeric" });
-
-    const provider = await User.findById(req.userId);
-    if (!provider) return res.status(404).json({ message: "Provider not found" });
+    }
 
     // Update provider location
-    provider.location = { type: "Point", coordinates: [lng, lat] };
-    provider.lastLocationUpdate = new Date();
-    provider.isLiveTracking = true;
+    const updateFields = {
+      location: { type: "Point", coordinates: [lng, lat] },
+      locationUpdatedAt: new Date(),
+      isOnline: true,
+      isLiveTracking: true
+    };
 
-    // Optional distance from customer (compute haversine if customerId provided)
+    const provider = await User.findByIdAndUpdate(
+      req.userId,
+      updateFields,
+      { new: true }
+    ).select("-password");
+
+    if (!provider) {
+      return res.status(404).json({ message: "Provider not found" });
+    }
+
+    // Calculate distance from customer if customerId provided
+    let distanceFromCustomer;
     if (customerId) {
       const customer = await User.findById(customerId).select("location");
       if (customer?.location?.coordinates?.length === 2) {
@@ -180,43 +193,55 @@ export const updateLocation = async (req, res) => {
             Math.cos((clat * Math.PI) / 180) *
             Math.sin(dLng / 2) ** 2;
         const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-        provider.distanceFromCustomer = Number((R * c).toFixed(2));
+        distanceFromCustomer = Number((R * c).toFixed(2));
       }
     }
-    await provider.save();
 
-    // ✅ Sync active booking location
+    // Update booking location and emit socket update if booking exists
     if (bookingId) {
-      const booking = await Booking.findOne({ bookingId });
-      if (booking) {
+      const booking = await Booking.findById(bookingId);
+      if (booking && booking.status === "in_progress") {
+        // Update booking location
         booking.providerLocation = { type: "Point", coordinates: [lng, lat] };
-        booking.providerLastUpdate = new Date();
+        booking.providerLastUpdate = provider.locationUpdatedAt;
 
-        // compute distance between booking and provider
+        // Calculate distance from booking location
         if (booking.location?.coordinates?.length === 2) {
-          const [lng2, lat2] = booking.location.coordinates;
-          const R = 6371;
-          const dLat = ((lat2 - lat) * Math.PI) / 180;
-          const dLng = ((lng2 - lng) * Math.PI) / 180;
+          const [blng, blat] = booking.location.coordinates;
+          const R = 6371; // km
+          const dLat = ((blat - lat) * Math.PI) / 180;
+          const dLng = ((blng - lng) * Math.PI) / 180;
           const a =
             Math.sin(dLat / 2) ** 2 +
-            Math.cos((lat * Math.PI) / 180) *
-              Math.cos((lat2 * Math.PI) / 180) *
+            Math.cos((lat * Math.PI) / 180) * 
+              Math.cos((blat * Math.PI) / 180) * 
               Math.sin(dLng / 2) ** 2;
           const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-          booking.distanceFromCustomer = Number((R * c).toFixed(2));
+          booking.distanceFromProvider = Number((R * c).toFixed(2));
         }
         await booking.save();
+
+        // Emit location update via socket
+        if (req.app.get('io')) {
+          req.app.get('io').to(booking.customer.toString()).emit('provider:location', {
+            lat,
+            lng,
+            bookingId,
+            updatedAt: provider.locationUpdatedAt,
+            distanceFromBooking: booking.distanceFromProvider
+          });
+        }
       }
     }
 
     res.json({
       success: true,
-      location: provider.location,
-      bookingSync: !!bookingId,
-      distance: provider.distanceFromCustomer || null,
+      provider,
+      distanceFromCustomer,
+      bookingDistance: booking?.distanceFromProvider
     });
   } catch (e) {
+    console.error('Location update error:', e);
     res.status(500).json({ message: e.message });
   }
 };

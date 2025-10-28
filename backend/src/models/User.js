@@ -21,6 +21,9 @@ const userSchema = new mongoose.Schema(
     },
     lastServiceCompletedAt: { type: Date }, // Timestamp of last completed service
     isLiveTracking: { type: Boolean, default: false }, // Whether actively sending live location updates
+    locationUpdatedAt: { type: Date, default: Date.now }, // Last time location was updated
+    isOnline: { type: Boolean, default: false }, // Whether provider is currently online
+    priceLevel: { type: String, enum: ["lowest", "low", "medium", "high"], default: "medium" },
     documents: [{ type: String }],
     selfie: { type: String },
     otpVerified: { type: Boolean, default: false },
