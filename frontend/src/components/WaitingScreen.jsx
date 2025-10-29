@@ -25,7 +25,7 @@ const INTERESTING_FACTS = [
   "💪 Our platform connects thousands of customers with experts daily."
 ];
 
-export default function WaitingScreen({ isOpen, bookingId, onAccepted, estimatedWait = 300 }) {
+export default function WaitingScreen({ isOpen, bookingId, onAccepted, onCancel, estimatedWait = 300 }) {
   const [currentFactIndex, setCurrentFactIndex] = useState(0);
   const [elapsedTime, setElapsedTime] = useState(0);
 
@@ -187,6 +187,23 @@ export default function WaitingScreen({ isOpen, bookingId, onAccepted, estimated
             You can close this and we'll send you an alert
           </p>
         </motion.div>
+
+        {/* Cancel Button */}
+        {onCancel && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 1.0 }}
+            className="flex justify-center mt-6"
+          >
+            <button
+              onClick={onCancel}
+              className="px-8 py-3 bg-red-500 hover:bg-red-600 text-white font-semibold rounded-lg shadow-lg transition-all duration-200 hover:scale-105 hover:shadow-xl"
+            >
+              Cancel Booking
+            </button>
+          </motion.div>
+        )}
 
         {/* Booking ID */}
         {bookingId && (

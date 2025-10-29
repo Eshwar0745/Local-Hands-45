@@ -1,10 +1,12 @@
 import React, { useEffect, useState } from "react";
 import API from "../services/api";
-import { FiUser, FiCalendar, FiCheck, FiX, FiStar } from "react-icons/fi";
+import { FiUser, FiCalendar, FiCheck, FiX, FiStar, FiFileText } from "react-icons/fi";
 import ReviewCard from "../components/ReviewCard";
 // Switched to EnhancedRatingModal (hidden review + optional message). Providers do not upload images.
 import EnhancedRatingModal from "../components/EnhancedRatingModal";
 import { RatingsAPI } from "../services/api.extras";
+import ProviderEarningsDashboard from "../components/ProviderEarningsDashboard";
+import BillGenerationModal from "../components/BillGenerationModal";
 
 export default function ProviderHistory() {
   const [bookings, setBookings] = useState([]);
@@ -13,6 +15,9 @@ export default function ProviderHistory() {
   const [submitting, setSubmitting] = useState(false);
   const [customerProfile, setCustomerProfile] = useState(null);
   const [loadingProfile, setLoadingProfile] = useState(false);
+  const [showEarnings, setShowEarnings] = useState(false);
+  const [selectedBooking, setSelectedBooking] = useState(null);
+  const [showBillModal, setShowBillModal] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -28,13 +33,43 @@ export default function ProviderHistory() {
   }, []);
 
   const canRate = (b) => b.status === "completed" && !b.providerRating;
+  
+  const canGenerateBill = (b) => b.status === "completed" && b.paymentStatus === "pending";
+
+  const handleGenerateBill = (booking) => {
+    setSelectedBooking(booking);
+    setShowBillModal(true);
+  };
+
+  const handleBillSuccess = (updatedBooking) => {
+    // Refresh bookings list
+    setBookings(bookings.map(b => b._id === updatedBooking._id ? updatedBooking : b));
+    setShowBillModal(false);
+    setSelectedBooking(null);
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-50 to-white dark:from-[#0f172a] dark:via-[#1e293b] dark:to-[#0f172a] transition-all duration-300">
       <div className="max-w-6xl mx-auto px-6 py-10">
-        <h1 className="text-3xl font-bold mb-6 text-brand-gray-900 dark:text-white">
-          My Service History
-        </h1>
+        <div className="flex items-center justify-between mb-6">
+          <h1 className="text-3xl font-bold text-brand-gray-900 dark:text-white">
+            My Service History
+          </h1>
+          <button
+            onClick={() => setShowEarnings(!showEarnings)}
+            className="inline-flex items-center gap-2 px-4 py-2 bg-brand-primary hover:bg-blue-600 text-white rounded-lg transition-colors"
+          >
+            <FiFileText />
+            {showEarnings ? 'Hide Earnings' : 'View Earnings'}
+          </button>
+        </div>
+
+        {/* Earnings Dashboard */}
+        {showEarnings && (
+          <div className="mb-8">
+            <ProviderEarningsDashboard />
+          </div>
+        )}
 
         {loading ? (
           <div className="p-6 text-gray-500 dark:text-gray-400 animate-pulse">
@@ -98,27 +133,62 @@ export default function ProviderHistory() {
                 </div>
 
                 <div className="mt-4 flex items-center justify-between">
-                  <div className="text-blue-500 font-semibold">
-                    ₹{b.service?.price || 0}
+                  <div>
+                    <div className="text-blue-500 font-semibold">
+                      ₹{b.billDetails?.total || b.service?.price || 0}
+                    </div>
+                    {b.paymentStatus && (
+                      <div className={`text-xs mt-1 ${
+                        b.paymentStatus === 'paid' ? 'text-green-600' : 
+                        b.paymentStatus === 'billed' ? 'text-yellow-600' : 
+                        'text-gray-500'
+                      }`}>
+                        {b.paymentStatus === 'paid' ? '✓ Paid' : 
+                         b.paymentStatus === 'billed' ? '📄 Bill Generated' : 
+                         'Pending'}
+                      </div>
+                    )}
                   </div>
 
-                  {canRate(b) ? (
-                    <button
-                      onClick={() => setRateFor(b)}
-                      className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm"
-                    >
-                      Rate Customer
-                    </button>
-                  ) : b.providerRating ? (
-                    <div className="text-sm text-gray-500 dark:text-gray-400 flex items-center gap-1">
-                      <FiStar className="text-yellow-400" />{" "}
-                      {b.providerRating}/5
-                    </div>
-                  ) : null}
+                  <div className="flex items-center gap-2">
+                    {canGenerateBill(b) && (
+                      <button
+                        onClick={() => handleGenerateBill(b)}
+                        className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm"
+                      >
+                        Generate Bill
+                      </button>
+                    )}
+                    {canRate(b) ? (
+                      <button
+                        onClick={() => setRateFor(b)}
+                        className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm"
+                      >
+                        Rate Customer
+                      </button>
+                    ) : b.providerRating ? (
+                      <div className="text-sm text-gray-500 dark:text-gray-400 flex items-center gap-1">
+                        <FiStar className="text-yellow-400" />{" "}
+                        {b.providerRating}/5
+                      </div>
+                    ) : null}
+                  </div>
                 </div>
               </div>
             ))}
           </div>
+        )}
+
+        {/* Bill Generation Modal */}
+        {showBillModal && selectedBooking && (
+          <BillGenerationModal
+            booking={selectedBooking}
+            onClose={() => {
+              setShowBillModal(false);
+              setSelectedBooking(null);
+            }}
+            onSuccess={handleBillSuccess}
+          />
         )}
 
         <EnhancedRatingModal

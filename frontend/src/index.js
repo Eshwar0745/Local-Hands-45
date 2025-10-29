@@ -5,6 +5,8 @@ import { BrowserRouter } from "react-router-dom";
 import App from "./App";
 import "./index.css";
 import { AuthProvider } from "./context/AuthContext";
+import { ToastContainer } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
 
 createRoot(document.getElementById("root")).render(
   <React.StrictMode>
@@ -12,6 +14,8 @@ createRoot(document.getElementById("root")).render(
       <BrowserRouter>
         <AuthProvider>
           <App />
+          {/* Toasts container for react-toastify usage in pages/components */}
+          <ToastContainer position="top-right" autoClose={3000} newestOnTop />
         </AuthProvider>
       </BrowserRouter>
     </ThemeProvider>

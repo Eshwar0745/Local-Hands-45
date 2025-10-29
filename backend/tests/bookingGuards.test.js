@@ -14,7 +14,13 @@ function token(user){ return jwt.sign({ id: user._id, role: user.role }, process
 describe('Booking guards', () => {
   let customer, provider, legacyService, activeService, inactiveService;
   beforeAll(async () => {
-    if (!mongoose.connection.readyState) await mongoose.connect(process.env.TEST_MONGO_URI || process.env.MONGO_URI);
+    // app.js already handles connection via connectDB()
+    // Clean up any existing test data
+    await User.deleteMany({ email: { $in: ['cust@test.com', 'prov2@test.com'] } });
+    await Service.deleteMany({});
+    await ServiceTemplate.deleteMany({});
+    await Category.deleteMany({});
+    
     customer = await User.create({ name: 'Cust', email: 'cust@test.com', password: await bcrypt.hash('x',10), role: 'customer' });
     provider = await User.create({ name: 'Prov', email: 'prov2@test.com', password: await bcrypt.hash('x',10), role: 'provider' });
     legacyService = await Service.create({ name: 'Legacy', category: 'Old', price: 10, provider: provider._id });

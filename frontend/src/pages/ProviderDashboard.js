@@ -2,20 +2,22 @@ import { useEffect, useState, useRef } from 'react';
 import { useTheme } from 'next-themes';
 import { useNavigate } from 'react-router-dom';
 import API from '../services/api';
-import { FiClock, FiZap, FiCheck, FiX, FiBriefcase, FiShield } from 'react-icons/fi';
+import { FiClock, FiZap, FiCheck, FiX, FiBriefcase, FiShield, FiFileText } from 'react-icons/fi';
 import { useAuth } from '../context/AuthContext';
 import ServiceSelectionModal from '../components/ServiceSelectionModal';
+import BillModal from '../components/BillModal';
 
 export default function ProviderDashboard() {
   const [offers, setOffers] = useState([]); // pending offers
+  const [activeBookings, setActiveBookings] = useState([]); // accepted/in_progress/completed bookings
   const [loadingOffers, setLoadingOffers] = useState(false);
   const [now, setNow] = useState(Date.now());
   const pollRef = useRef(null);
   const { theme, setTheme } = useTheme();
-  const { user, setAvailability } = useAuth();
-  const [liveUpdating, setLiveUpdating] = useState(false);
+  const { user } = useAuth();
   const [showServiceModal, setShowServiceModal] = useState(false);
   const [showVerificationModal, setShowVerificationModal] = useState(false);
+  const [billModal, setBillModal] = useState(null); // For bill modal
   const navigate = useNavigate();
 
   const fetchOffers = async () => {
@@ -26,10 +28,29 @@ export default function ProviderDashboard() {
       setNow(Date.parse(data.now) || Date.now());
     } catch { /* ignore */ } finally { setLoadingOffers(false); }
   };
+  
+  const fetchActiveBookings = async () => {
+    try {
+      const { data } = await API.get('/bookings/mine');
+      const bookings = data.bookings || [];
+      // Filter for active bookings (accepted, in_progress, completed - not cancelled/rejected)
+      const active = bookings.filter(b => 
+        ['accepted', 'in_progress', 'completed'].includes(b.status) && 
+        b.status !== 'cancelled'
+      );
+      setActiveBookings(active);
+    } catch (e) {
+      console.error('Failed to fetch active bookings:', e);
+    }
+  };
 
   useEffect(() => {
     fetchOffers();
-    pollRef.current = setInterval(fetchOffers, 15000); // 15s polling
+    fetchActiveBookings();
+    pollRef.current = setInterval(() => {
+      fetchOffers();
+      fetchActiveBookings();
+    }, 15000); // 15s polling
     const tick = setInterval(()=> setNow(Date.now()), 1000); // countdown second resolution
     return () => { clearInterval(pollRef.current); clearInterval(tick); };
   }, []);
@@ -43,11 +64,40 @@ export default function ProviderDashboard() {
       const url = `/bookings/${id}/offer/${action}`;
       await API.patch(url, {});
       fetchOffers();
+      fetchActiveBookings(); // Refresh active bookings after accepting
     } catch(e){
       const data = e?.response?.data;
       alert(`Failed: ${data?.message || e.message}\n${data?.error ? 'Detail: '+data.error : ''}`);
       console.warn('[offer action error]', data); 
     }
+  };
+  
+  const markInProgress = async (id) => {
+    try {
+      await API.patch(`/bookings/${id}/in-progress`);
+      fetchActiveBookings();
+    } catch (e) {
+      alert(e?.response?.data?.message || 'Failed to mark in progress');
+    }
+  };
+  
+  const markComplete = async (id) => {
+    if (!window.confirm('Mark this booking as completed? A bill will be automatically generated.')) return;
+    try {
+      const response = await API.patch(`/bookings/${id}/complete`);
+      fetchActiveBookings();
+      if (response.data.billGenerated) {
+        alert('✅ Booking completed and bill generated! You can now send the bill to customer.');
+      } else {
+        alert('✅ Booking marked as completed!');
+      }
+    } catch (e) {
+      alert(e?.response?.data?.message || 'Failed to mark as completed');
+    }
+  };
+  
+  const viewBill = (booking) => {
+    setBillModal(booking);
   };
 
   return (
@@ -72,71 +122,6 @@ export default function ProviderDashboard() {
           >
             {theme === 'dark' ? '🌞 Light' : '🌙 Dark'}
           </button>
-          {user?.role === 'provider' && (
-            <button
-              disabled={liveUpdating}
-              onClick={async ()=> {
-                try {
-                  setLiveUpdating(true);
-                  
-                  // ✅ If turning ON Go Live, ask for current location first
-                  if (!user.isAvailable) {
-                    if (!navigator.geolocation) {
-                      alert('Geolocation is not supported by your browser');
-                      return;
-                    }
-                    
-                    // Get current location
-                    navigator.geolocation.getCurrentPosition(
-                      async (position) => {
-                        const location = {
-                          lng: position.coords.longitude,
-                          lat: position.coords.latitude
-                        };
-                        
-                        try {
-                          await setAvailability(true, location);
-                          alert('You are now LIVE with updated location!');
-                        } catch(e) {
-                          const errorData = e?.response?.data;
-                          if (e?.response?.status === 403) {
-                            // Show verification modal instead of alert
-                            setShowVerificationModal(true);
-                          } else {
-                            alert(errorData?.message || 'Failed to go live');
-                          }
-                        } finally {
-                          setLiveUpdating(false);
-                        }
-                      },
-                      (error) => {
-                        alert('Unable to get your location. Please enable location services.');
-                        console.error('Geolocation error:', error);
-                        setLiveUpdating(false);
-                      },
-                      { enableHighAccuracy: true, timeout: 10000 }
-                    );
-                  } else {
-                    // Turning OFF - no location needed
-                    await setAvailability(false);
-                    setLiveUpdating(false);
-                  }
-                } catch(e){ 
-                  const errorData = e?.response?.data;
-                  if (e?.response?.status === 403) {
-                    // Show verification modal
-                    setShowVerificationModal(true);
-                  } else {
-                    alert(errorData?.message || 'Failed to update');
-                  }
-                  setLiveUpdating(false);
-                }
-              }}
-              className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-colors border ${user?.isAvailable ? 'bg-green-500 hover:bg-green-600 text-white border-green-600 dark:border-green-500' : 'bg-amber-500/90 hover:bg-amber-500 text-white border-amber-600 dark:border-amber-500'} disabled:opacity-60 disabled:cursor-not-allowed`}
-            >
-              {user?.isAvailable ? <><FiZap className="w-4 h-4"/> Live</> : <>Go Live <FiZap className="w-4 h-4"/></>}
-            </button>
-          )}
         </div>
       </div>
 
@@ -193,6 +178,121 @@ export default function ProviderDashboard() {
         </div>
       </section>
 
+      {/* Active Bookings Section */}
+      {activeBookings.length > 0 && (
+        <section>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-xl font-semibold">Active Bookings</h2>
+            <button onClick={fetchActiveBookings} className="text-sm px-3 py-1 rounded-lg bg-blue-50 dark:bg-blue-900/40 text-blue-600 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-800/60 border border-blue-100 dark:border-blue-800 transition-colors">Refresh</button>
+          </div>
+          <div className="space-y-4">
+            {activeBookings.map(booking => (
+              <div key={booking._id} className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-5 shadow-card">
+                <div className="flex items-center justify-between mb-3">
+                  <div>
+                    <h3 className="font-semibold text-gray-900 dark:text-white">Booking #{booking.bookingId}</h3>
+                    <p className="text-sm text-gray-600 dark:text-gray-400">
+                      {booking.service?.name || booking.serviceTemplate?.name || 'Service'}
+                    </p>
+                  </div>
+                  <span className={`px-3 py-1 rounded-full text-xs font-medium ${
+                    booking.status === 'in_progress' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300' :
+                    booking.status === 'completed' ? 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300' :
+                    'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300'
+                  }`}>
+                    {booking.status.replace('_', ' ').toUpperCase()}
+                  </span>
+                </div>
+                
+                <div className="mb-4 text-sm text-gray-600 dark:text-gray-400">
+                  <p>Customer: {booking.customer?.name || 'N/A'}</p>
+                  {booking.serviceDetails?.answers && (
+                    <div className="mt-2 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+                      <p className="font-medium mb-1">Service Details:</p>
+                      {Object.entries(booking.serviceDetails.answers).map(([key, value]) => (
+                        <p key={key} className="text-xs">
+                          <span className="font-medium">{key}:</span> {Array.isArray(value) ? value.join(', ') : value}
+                        </p>
+                      ))}
+                      {booking.serviceDetails.estimate && (
+                        <p className="text-xs mt-1 font-medium text-green-600 dark:text-green-400">
+                          Estimated: ₹{booking.serviceDetails.estimate.totalCost}
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </div>
+                
+                <div className="flex gap-2 flex-wrap">
+                  {booking.status === 'accepted' && (
+                    <button
+                      onClick={() => markInProgress(booking._id)}
+                      className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white text-sm font-medium rounded-lg transition-colors"
+                    >
+                      Mark In Progress
+                    </button>
+                  )}
+                  
+                  {booking.status === 'in_progress' && (
+                    <>
+                      <button
+                        onClick={() => markComplete(booking._id)}
+                        className="px-4 py-2 bg-green-500 hover:bg-green-600 text-white text-sm font-medium rounded-lg transition-colors"
+                      >
+                        Mark Complete
+                      </button>
+                      <button
+                        onClick={() => navigate(`/provider/track/${booking._id}`)}
+                        className="px-4 py-2 bg-purple-500 hover:bg-purple-600 text-white text-sm font-medium rounded-lg transition-colors"
+                      >
+                        Track Location
+                      </button>
+                    </>
+                  )}
+                  
+                  {booking.status === 'completed' && booking.billDetails && (
+                    <>
+                      <button
+                        onClick={() => viewBill(booking)}
+                        className="px-4 py-2 bg-indigo-500 hover:bg-indigo-600 text-white text-sm font-medium rounded-lg transition-colors flex items-center gap-2"
+                      >
+                        <FiFileText />
+                        View & Send Bill
+                      </button>
+                      {booking.paymentStatus === 'paid' && (
+                        <span className="px-3 py-2 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 text-sm font-medium rounded-lg border border-green-200 dark:border-green-700">
+                          ✅ Paid
+                        </span>
+                      )}
+                      {booking.paymentStatus === 'billed' && (
+                        <span className="px-3 py-2 bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400 text-sm font-medium rounded-lg border border-yellow-200 dark:border-yellow-700">
+                          ⏳ Awaiting Payment
+                        </span>
+                      )}
+                    </>
+                  )}
+                  
+                  {booking.status === 'completed' && !booking.bill && (
+                    <button
+                      onClick={() => generateBill(booking)}
+                      className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-sm font-medium rounded-lg transition-colors"
+                    >
+                      Generate Bill
+                    </button>
+                  )}
+                  
+                  {booking.bill && (
+                    <span className="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 text-sm font-medium rounded-lg">
+                      Bill Generated - ₹{booking.bill.totalAmount}
+                    </span>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
       {/* Service Selection Modal */}
       <ServiceSelectionModal
         isOpen={showServiceModal}
@@ -202,6 +302,19 @@ export default function ProviderDashboard() {
           // Optionally refresh something
         }}
       />
+      
+      {/* Bill Modal */}
+      {billModal && (
+        <BillModal
+          booking={billModal}
+          onClose={() => setBillModal(null)}
+          onPaymentSuccess={() => {
+            setBillModal(null);
+            fetchActiveBookings();
+          }}
+          userRole="provider"
+        />
+      )}
 
       {/* Verification Required Modal */}
       {showVerificationModal && (

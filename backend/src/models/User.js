@@ -39,6 +39,12 @@ const userSchema = new mongoose.Schema(
     rating: { type: Number, default: 0 },
     ratingCount: { type: Number, default: 0 },
     completedJobs: { type: Number, default: 0 },
+    
+    // Provider earnings tracking
+    totalEarnings: { type: Number, default: 0 }, // Lifetime earnings
+    pendingEarnings: { type: Number, default: 0 }, // Earnings from completed but unpaid jobs
+    withdrawableBalance: { type: Number, default: 0 }, // Available for withdrawal
+    
     // Customer specific
     address: { type: String },
     preciseAddress: { type: String }, // For remote/rural locations with detailed directions

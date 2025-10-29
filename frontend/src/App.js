@@ -17,7 +17,10 @@ import AdminNavbar from "./components/AdminNavbar";
 import HomePage from "./pages/HomePage";
 import CustomerHome from "./pages/CustomerHome";
 import CustomerHomeNew from "./pages/CustomerHomeNew";
+import CustomerBookings from "./pages/CustomerBookings";
 import ProviderHome from "./pages/ProviderHome";
+import ProviderDashboard from "./pages/ProviderDashboard";
+import ProviderBookings from "./pages/ProviderBookings";
 import ProfilePage from "./pages/ProfilePage";
 import LoginPage from "./pages/LoginPage";
 import RegisterPage from "./pages/RegisterPage";
@@ -173,6 +176,16 @@ export default function App() {
               </ProtectedRoute>
             }
           />
+          <Route
+            path="/customer/bookings"
+            element={
+              <ProtectedRoute>
+                <RoleGuard allow={["customer"]}>
+                  <CustomerBookings />
+                </RoleGuard>
+              </ProtectedRoute>
+            }
+          />
 
           {/* Provider */}
           <Route
@@ -180,7 +193,7 @@ export default function App() {
             element={
               <ProtectedRoute>
                 <RoleGuard allow={["provider"]}>
-                  <ProviderHome />
+                  <ProviderDashboard />
                 </RoleGuard>
               </ProtectedRoute>
             }
@@ -190,7 +203,7 @@ export default function App() {
             element={
               <ProtectedRoute>
                 <RoleGuard allow={["provider"]}>
-                  <ProviderHome />
+                  <ProviderDashboard />
                 </RoleGuard>
               </ProtectedRoute>
             }
@@ -211,6 +224,16 @@ export default function App() {
               <ProtectedRoute>
                 <RoleGuard allow={["provider"]}>
                   <ProviderHistory />
+                </RoleGuard>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/provider/bookings"
+            element={
+              <ProtectedRoute>
+                <RoleGuard allow={["provider"]}>
+                  <ProviderBookings />
                 </RoleGuard>
               </ProtectedRoute>
             }

@@ -15,9 +15,12 @@ function tokenFor(user) {
 describe('Provider select services', () => {
   let provider; let template;
   beforeAll(async () => {
-    if (!mongoose.connection.readyState) {
-      await mongoose.connect(process.env.TEST_MONGO_URI || process.env.MONGO_URI);
-    }
+    // app.js already handles connection via connectDB()
+    // Clean up any existing test data
+    await User.deleteMany({ email: 'prov@test.com' });
+    await Category.deleteMany({});
+    await ServiceTemplate.deleteMany({});
+    
     provider = await User.create({ name: 'Prov', email: 'prov@test.com', password: await bcrypt.hash('pass',10), role: 'provider', verified: true });
   const category = await Category.create({ name: 'TestCat' });
     template = await ServiceTemplate.create({ name: 'Test Service', category: category._id, defaultPrice: 42, active: true });

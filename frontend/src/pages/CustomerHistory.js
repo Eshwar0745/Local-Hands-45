@@ -1,10 +1,12 @@
 import React, { useEffect, useState } from "react";
 import API from "../services/api";
-import { FiCalendar, FiCheck, FiX, FiStar } from "react-icons/fi";
+import { FiCalendar, FiCheck, FiX, FiStar, FiFileText } from "react-icons/fi";
 // Migrated from legacy RatingModal to EnhancedRatingModal with hidden review + optional message + image support
 import EnhancedRatingModal from "../components/EnhancedRatingModal";
 import { RatingsAPI } from "../services/api.extras";
 import ReviewCard from "../components/ReviewCard";
+import CustomerPaymentHistory from "../components/CustomerPaymentHistory";
+import BillViewModal from "../components/BillViewModal";
 
 export default function CustomerHistory() {
   const [bookings, setBookings] = useState([]);
@@ -15,6 +17,9 @@ export default function CustomerHistory() {
   // For provider profile reviews shown in modal (if desired later)
   const [providerProfile, setProviderProfile] = useState(null);
   const [loadingProfile, setLoadingProfile] = useState(false);
+  const [showPaymentHistory, setShowPaymentHistory] = useState(false);
+  const [selectedBookingId, setSelectedBookingId] = useState(null);
+  const [showBillModal, setShowBillModal] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -37,10 +42,39 @@ export default function CustomerHistory() {
   const canRate = (b) =>
     b.status === "completed" && !b.customerRating;
 
+  const canViewBill = (b) => b.paymentStatus === "billed" || b.paymentStatus === "paid";
+
+  const handleViewBill = (booking) => {
+    setSelectedBookingId(booking._id);
+    setShowBillModal(true);
+  };
+
+  const handlePaymentSuccess = () => {
+    load(); // Refresh bookings
+    setShowBillModal(false);
+    setSelectedBookingId(null);
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-50 to-white dark:from-[#0f172a] dark:via-[#1e293b] dark:to-[#0f172a] transition-all duration-300">
       <div className="max-w-7xl mx-auto px-6 py-10">
-        <h1 className="text-3xl font-bold mb-6 text-brand-gray-900 dark:text-white bg-clip-text dark:bg-gradient-to-r dark:from-blue-400 dark:to-blue-600 dark:text-transparent">My History</h1>
+        <div className="flex items-center justify-between mb-6">
+          <h1 className="text-3xl font-bold text-brand-gray-900 dark:text-white bg-clip-text dark:bg-gradient-to-r dark:from-blue-400 dark:to-blue-600 dark:text-transparent">My History</h1>
+          <button
+            onClick={() => setShowPaymentHistory(!showPaymentHistory)}
+            className="inline-flex items-center gap-2 px-4 py-2 bg-brand-primary hover:bg-blue-600 text-white rounded-lg transition-colors"
+          >
+            <FiFileText />
+            {showPaymentHistory ? 'Hide Payments' : 'View Payments'}
+          </button>
+        </div>
+
+        {/* Payment History */}
+        {showPaymentHistory && (
+          <div className="mb-8">
+            <CustomerPaymentHistory />
+          </div>
+        )}
 
       {loading ? (
         <div className="text-brand-gray-500 dark:text-gray-400 animate-pulse bg-white dark:bg-gray-800 p-6 rounded-xl border border-gray-200 dark:border-gray-700">Loading your bookings...</div>
@@ -89,10 +123,21 @@ export default function CustomerHistory() {
 
                 <div className="text-right">
                   <div className="font-bold text-brand-primary dark:text-blue-400 text-lg">
-                    ₹{b.service?.price ?? 0}
+                    ₹{b.billDetails?.total || b.service?.price || 0}
                   </div>
+                  {b.paymentStatus && (
+                    <div className={`text-xs mt-1 ${
+                      b.paymentStatus === 'paid' ? 'text-green-600 dark:text-green-400' : 
+                      b.paymentStatus === 'billed' ? 'text-yellow-600 dark:text-yellow-400' : 
+                      'text-gray-500 dark:text-gray-400'
+                    }`}>
+                      {b.paymentStatus === 'paid' ? '✓ Paid' : 
+                       b.paymentStatus === 'billed' ? '📄 Awaiting Payment' : 
+                       'Pending'}
+                    </div>
+                  )}
                   {b.providerAvgRating && (
-                    <div className="text-xs text-brand-gray-500 dark:text-gray-400 inline-flex items-center gap-1">
+                    <div className="text-xs text-brand-gray-500 dark:text-gray-400 inline-flex items-center gap-1 mt-1">
                       <FiStar className="w-3 h-3 text-warning dark:text-yellow-400 fill-current" />
                       {b.providerAvgRating.toFixed(1)}
                     </div>
@@ -100,7 +145,15 @@ export default function CustomerHistory() {
                 </div>
               </div>
 
-              <div className="mt-4">
+              <div className="mt-4 flex items-center gap-2">
+                {canViewBill(b) && (
+                  <button
+                    onClick={() => handleViewBill(b)}
+                    className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-all duration-300 shadow-sm inline-flex items-center gap-2"
+                  >
+                    <FiFileText /> View Bill
+                  </button>
+                )}
                 {canRate(b) ? (
                   <button
                     onClick={() => setRateFor(b)}
@@ -129,6 +182,18 @@ export default function CustomerHistory() {
             </div>
           ))}
         </div>
+      )}
+
+      {/* Bill View Modal */}
+      {showBillModal && selectedBookingId && (
+        <BillViewModal
+          bookingId={selectedBookingId}
+          onClose={() => {
+            setShowBillModal(false);
+            setSelectedBookingId(null);
+          }}
+          onPaymentSuccess={handlePaymentSuccess}
+        />
       )}
 
       <EnhancedRatingModal

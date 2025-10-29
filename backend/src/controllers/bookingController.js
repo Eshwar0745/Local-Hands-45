@@ -39,7 +39,8 @@ export const createBooking = async (req, res) => {
 };
 
 // Multi-provider booking creation based on template (aggregated service selection)
-const OFFER_TIMEOUT_MS = 10 * 1000; // 10 seconds
+// ✅ Offer timeout: 2 minutes (120 seconds) per provider for demo
+const OFFER_TIMEOUT_MS = 120 * 1000; // 2 minutes
 
 async function computeProviderExperience(providerId) {
   const user = await User.findById(providerId).select('completedJobs');
@@ -227,24 +228,70 @@ export const declineOffer = async (req,res)=>{
 export const myOffers = async (req,res)=>{
   try {
     // Providers only
-    const offers = await Booking.find({ status: 'requested', 'offers.provider': req.userId })
-      .select('bookingId offers providerResponseTimeout serviceTemplate service')
+    const myProviderId = req.userId;
+    console.log('🔍 Fetching offers for provider:', myProviderId, '(last 6 chars:', myProviderId.toString().slice(-6) + ')');
+    
+    // First, let's see ALL recent bookings regardless of status
+    const allRecent = await Booking.find({})
+      .sort({ createdAt: -1 })
+      .limit(5)
+      .select('bookingId status offers.provider offers.status createdAt')
+      .lean();
+    
+    console.log('📊 Recent bookings (any status):', allRecent.map(b => ({
+      id: b.bookingId,
+      status: b.status,
+      created: b.createdAt,
+      offersCount: b.offers?.length || 0,
+      providers: b.offers?.map(o => o.provider?.toString().slice(-6)) || []
+    })));
+    
+    // Find bookings with status 'requested' that have an offer for this provider
+    const offers = await Booking.find({ 
+      status: 'requested', 
+      'offers.provider': myProviderId 
+    })
+      .select('bookingId offers providerResponseTimeout serviceTemplate serviceCatalog service status')
       .populate('service')
       .populate('serviceTemplate','name')
+      .populate('serviceCatalog', 'name')
       .lean();
+    
+    console.log('📋 Found bookings with status=requested and my offer:', offers.map(b => ({
+      id: b.bookingId,
+      status: b.status,
+      offersCount: b.offers?.length,
+      offers: b.offers?.map(o => ({ 
+        provider: o.provider.toString().slice(-6), 
+        status: o.status,
+        isMe: o.provider.toString() === myProviderId.toString()
+      }))
+    })));
+    
     const now = new Date();
     const mine = offers.filter(b=>{
       const current = b.offers.find(o=>o.status==='pending');
-      return current && current.provider.toString() === req.userId;
+      const isForMe = current && current.provider.toString() === myProviderId.toString();
+      if (current && !isForMe) {
+        console.log(`⏭️ Skipping ${b.bookingId} - pending offer is for different provider`);
+      }
+      return isForMe;
     }).map(b=>({
       _id: b._id,
       bookingId: b.bookingId,
       serviceTemplate: b.serviceTemplate,
+      serviceCatalog: b.serviceCatalog,
       service: b.service,
       timeoutAt: b.providerResponseTimeout,
     }));
+    
+    console.log('✅ Filtered offers for this provider:', mine.map(m => m.bookingId));
+    
     res.json({ offers: mine, now });
-  } catch(e){ res.status(500).json({ message: e.message }); }
+  } catch(e){ 
+    console.error('❌ Error in myOffers:', e);
+    res.status(500).json({ message: e.message }); 
+  }
 };
 
 // New: provider-visible pending bookings excluding those they rejected or accepted
@@ -482,10 +529,20 @@ export const getTrackingStatus = async (req, res) => {
     // Compute distance & ETA if both locations present
     let distanceKm = booking.distanceFromCustomer || null;
     let etaMinutes = null;
-    const hasProvider = booking.providerLocation?.coordinates?.length === 2;
+    let providerPoint = booking.providerLocation; // GeoJSON Point or undefined
     const hasCustomer = booking.location?.coordinates?.length === 2;
+
+    // Fallback: if booking.providerLocation missing, use provider's current User.location
+    if ((!providerPoint || !providerPoint.coordinates || providerPoint.coordinates.length !== 2) && booking.provider) {
+      const prov = await User.findById(booking.provider).select('location updatedAt');
+      if (prov?.location?.coordinates?.length === 2) {
+        providerPoint = prov.location;
+      }
+    }
+
+    const hasProvider = providerPoint?.coordinates?.length === 2;
     if (hasProvider && hasCustomer) {
-      const [plng, plat] = booking.providerLocation.coordinates;
+      const [plng, plat] = providerPoint.coordinates;
       const [clng, clat] = booking.location.coordinates;
       const R = 6371;
       const dLat = ((clat - plat) * Math.PI) / 180;
@@ -506,7 +563,7 @@ export const getTrackingStatus = async (req, res) => {
       bookingId: booking.bookingId,
       status: booking.status,
       provider: hasProvider
-        ? { lat: booking.providerLocation.coordinates[1], lng: booking.providerLocation.coordinates[0], lastUpdate: booking.providerLastUpdate }
+        ? { lat: providerPoint.coordinates[1], lng: providerPoint.coordinates[0], lastUpdate: booking.providerLastUpdate }
         : null,
       customer: hasCustomer
         ? { lat: booking.location.coordinates[1], lng: booking.location.coordinates[0] }
@@ -534,6 +591,45 @@ export const completeBooking = async (req, res) => {
     booking.status = "completed";
     booking.completedAt = new Date();
     booking.reviewStatus = "provider_pending"; // Customer needs to review first
+    
+    // ✅ AUTO-GENERATE BILL FROM ESTIMATE
+    if (booking.serviceDetails?.estimate && !booking.billDetails) {
+      const estimate = booking.serviceDetails.estimate;
+      
+      // Extract all estimate components
+      const serviceCharges = Number(estimate.serviceCharge) || 0;
+      const visitCharge = Number(estimate.visitCharge) || 0;
+      const platformFee = Number(estimate.platformFee) || 0;
+      const subtotal = Number(estimate.subtotal) || (serviceCharges + visitCharge);
+      const total = Number(estimate.total) || (subtotal + platformFee);
+      
+      booking.billDetails = {
+        serviceCharges: serviceCharges,
+        extraFees: visitCharge,
+        discount: 0,
+        tax: 0,
+        subtotal: subtotal,
+        total: total,
+        notes: `Bill generated from initial estimate for ${estimate.breakdown?.serviceName || booking.serviceCatalog?.name || 'Service'}. Original estimate provided to customer: ₹${total}`,
+        generatedAt: new Date(),
+        generatedBy: req.userId
+      };
+      booking.paymentStatus = "billed";
+      
+      console.log('📋 Bill auto-generated from estimate:', { 
+        bookingId: booking.bookingId, 
+        serviceCharges,
+        visitCharge,
+        platformFee,
+        subtotal,
+        total,
+        originalEstimate: estimate
+      });
+    } else if (!booking.billDetails) {
+      // If no estimate exists, log warning
+      console.warn('⚠️ No estimate found for booking:', booking.bookingId, 'Bill not auto-generated');
+    }
+    
     await booking.save();
     
     // ✅ POST-SERVICE LOCATION UPDATE: Update provider's location to customer's booking location
@@ -549,7 +645,22 @@ export const completeBooking = async (req, res) => {
     if(booking.provider){
       await User.findByIdAndUpdate(booking.provider, { $inc: { completedJobs: 1 } });
     }
-    res.json({ booking, needsReview: true, reviewerRole: "provider", waitingFor: "customer" });
+    
+    // Update provider's pending earnings if bill was generated
+    if (booking.billDetails) {
+      await User.findByIdAndUpdate(booking.provider, {
+        $inc: { pendingEarnings: booking.billDetails.total }
+      });
+    }
+    
+    res.json({ 
+      booking, 
+      needsReview: true, 
+      reviewerRole: "provider", 
+      waitingFor: "customer",
+      billGenerated: !!booking.billDetails,
+      billDetails: booking.billDetails 
+    });
   } catch (e) { res.status(500).json({ message: e.message }); }
 };
 
@@ -942,14 +1053,37 @@ export const createBookingWithQuestionnaire = async (req, res) => {
 
     // Find services that match this catalog by name or category
     const catalog = await ServiceCatalog.findById(serviceCatalogId).lean();
+    console.log('🔍 Looking for catalog:', catalog.name, 'in category:', catalog.category);
+    
+    // First try exact name match
     const safeName = catalog.name.replace(/[-\/\\^$*+?.()|[\]{}]/g, '.');
     const nameRegex = new RegExp(safeName, 'i');
-    const services = await Service.find({
-      $or: [
-        { name: { $regex: nameRegex } },
-        { category: { $regex: new RegExp(`^${catalog.category}$`, 'i') } }
-      ]
+    
+    let services = await Service.find({
+      name: { $regex: nameRegex }
     }).populate('provider','name rating ratingCount isAvailable location');
+    
+    console.log('📋 Found services by NAME match:', services.map(s => ({ 
+      name: s.name, 
+      provider: s.provider?.name, 
+      isAvailable: s.provider?.isAvailable,
+      hasLocation: !!s.provider?.location 
+    })));
+    
+    // If no exact name matches, fall back to category
+    if (services.length === 0) {
+      console.log('⚠️ No name matches found, searching by category:', catalog.category);
+      services = await Service.find({
+        category: { $regex: new RegExp(`^${catalog.category}$`, 'i') }
+      }).populate('provider','name rating ratingCount isAvailable location');
+      
+      console.log('📋 Found services by CATEGORY match:', services.map(s => ({ 
+        name: s.name, 
+        provider: s.provider?.name, 
+        isAvailable: s.provider?.isAvailable,
+        hasLocation: !!s.provider?.location 
+      })));
+    }
 
     const allOnline = [];
     for (const s of services) {
@@ -962,6 +1096,37 @@ export const createBookingWithQuestionnaire = async (req, res) => {
       const distanceKm = distKm(lng, lat, plng, plat);
       allOnline.push({ service: s, provider: prov, distanceKm, rating: prov.rating || 0, rate: s.price || 0 });
     }
+    
+    // Check for incomplete bookings for each provider
+    const providerIds = allOnline.map(c => c.provider._id);
+    const incompleteBookings = await Booking.find({
+      provider: { $in: providerIds },
+      status: 'completed',
+      $or: [
+        { billDetails: { $exists: false } },
+        { paymentStatus: { $ne: 'paid' } }
+      ]
+    }).select('provider bookingId status paymentStatus billDetails').lean();
+    
+    const incompleteByProvider = {};
+    incompleteBookings.forEach(b => {
+      const key = b.provider.toString();
+      if (!incompleteByProvider[key]) incompleteByProvider[key] = [];
+      incompleteByProvider[key].push({
+        bookingId: b.bookingId,
+        hasBill: !!b.billDetails,
+        paymentStatus: b.paymentStatus
+      });
+    });
+    
+    console.log('✅ Live providers:', allOnline.map(c => ({ 
+      provider: c.provider.name, 
+      id: c.provider._id.toString().slice(-6),
+      distance: c.distanceKm.toFixed(2) + ' km', 
+      rating: c.rating,
+      incompleteJobs: incompleteByProvider[c.provider._id.toString()]?.length || 0,
+      unpaidBills: incompleteByProvider[c.provider._id.toString()] || []
+    })));
 
     let candidates = [];
     let assignmentNote = undefined;
@@ -1023,10 +1188,35 @@ export const createBookingWithQuestionnaire = async (req, res) => {
     }
 
     // Prepare offers queue similar to multi-provider flow
-    const OFFER_TIMEOUT_MS = 10 * 1000; // 10 seconds per offer
+    // ✅ Offer timeout: 2 minutes (120 seconds) per provider for demo
+    const OFFER_TIMEOUT_MS = 120 * 1000; // 2 minutes per offer
     const first = candidates[0];
     const queue = candidates.slice(1).map(c => c.provider._id);
     const now = new Date();
+
+    console.log('🎯 SELECTED PROVIDER:', {
+      providerName: first.provider.name,
+      providerId: first.provider._id.toString(),
+      last6chars: first.provider._id.toString().slice(-6),
+      distance: first.distanceKm.toFixed(2) + ' km',
+      rating: first.rating,
+      price: first.rate,
+      sortPreference: sortPreference,
+      reason: sortPreference === 'nearby' ? 'Nearest' : 
+              sortPreference === 'rating' ? 'Highest rated' :
+              sortPreference === 'cheapest' ? 'Lowest price' :
+              'Best mix score'
+    });
+    
+    console.log('📊 ALL CANDIDATES (in priority order):', candidates.slice(0, 5).map((c, i) => ({
+      rank: i + 1,
+      name: c.provider.name,
+      id: c.provider._id.toString().slice(-6),
+      distance: c.distanceKm.toFixed(2) + ' km',
+      rating: c.rating,
+      price: c.rate,
+      selected: i === 0 ? '✅ YES' : '❌ No'
+    })));
 
     const booking = await Booking.create({
       bookingId,
@@ -1049,6 +1239,13 @@ export const createBookingWithQuestionnaire = async (req, res) => {
       providerResponseTimeout: new Date(now.getTime() + OFFER_TIMEOUT_MS),
       autoAssignMessage: assignmentNote || 'Searching for the best available provider...'
     });
+    
+    console.log('✅ Booking created:', {
+      id: booking.bookingId,
+      status: booking.status,
+      offersCount: booking.offers?.length,
+      firstOffer: booking.offers?.[0]?.provider?.toString()
+    });
 
     res.status(201).json({ 
       message: assignmentNote || 'Booking created! Waiting for provider response...', 
@@ -1059,5 +1256,72 @@ export const createBookingWithQuestionnaire = async (req, res) => {
   } catch (error) {
     console.error('Create booking error:', error);
     res.status(500).json({ message: 'Error creating booking', error: error.message });
+  }
+};
+
+// Mark booking as paid via Razorpay (online payment)
+export const markOnlinePaid = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { razorpay_order_id, razorpay_payment_id, razorpay_signature } = req.body;
+    
+    const booking = await Booking.findById(id);
+    if (!booking) return res.status(404).json({ message: 'Booking not found' });
+    
+    // Verify customer owns this booking
+    if (booking.customer.toString() !== req.userId) {
+      return res.status(403).json({ message: 'Not authorized' });
+    }
+    
+    // In production, verify signature with Razorpay secret
+    // For now, mark as paid
+    booking.paymentStatus = 'paid';
+    booking.paymentMethod = 'razorpay';
+    booking.paymentDetails = {
+      razorpay_order_id,
+      razorpay_payment_id,
+      razorpay_signature,
+      paidAt: new Date()
+    };
+    await booking.save();
+    
+    // Credit provider wallet if provider is assigned
+    if (booking.provider && booking.serviceDetails?.estimate?.total) {
+      await User.findByIdAndUpdate(booking.provider, {
+        $inc: { walletBalance: booking.serviceDetails.estimate.total }
+      });
+    }
+    
+    res.json({ success: true, message: 'Payment verified successfully', booking });
+  } catch (error) {
+    console.error('Mark online paid error:', error);
+    res.status(500).json({ message: 'Error processing payment', error: error.message });
+  }
+};
+
+// Mark booking as paid via Cash
+export const markCashPaid = async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const booking = await Booking.findById(id);
+    if (!booking) return res.status(404).json({ message: 'Booking not found' });
+    
+    // Verify customer owns this booking
+    if (booking.customer.toString() !== req.userId) {
+      return res.status(403).json({ message: 'Not authorized' });
+    }
+    
+    booking.paymentStatus = 'paid';
+    booking.paymentMethod = 'cash';
+    booking.paymentDetails = {
+      paidAt: new Date()
+    };
+    await booking.save();
+    
+    res.json({ success: true, message: 'Cash payment confirmed', booking });
+  } catch (error) {
+    console.error('Mark cash paid error:', error);
+    res.status(500).json({ message: 'Error processing cash payment', error: error.message });
   }
 };

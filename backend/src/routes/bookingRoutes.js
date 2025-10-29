@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { requireAuth, requireRole } from "../middleware/authMiddleware.js";
-import { createBooking, createBookingMulti, acceptBooking, rejectBooking, completeBooking, customerCompleteBooking, myBookings, cancelBooking, acceptOffer, declineOffer, myOffers, forceAdvanceOffer, getPendingCount, providerAvailableBookings, calculateEstimate, createBookingWithQuestionnaire, getTrackingStatus, getBookingOffersDebug, getBookingCandidates } from "../controllers/bookingController.js";
+import { createBooking, createBookingMulti, acceptBooking, rejectBooking, completeBooking, customerCompleteBooking, myBookings, cancelBooking, acceptOffer, declineOffer, myOffers, forceAdvanceOffer, getPendingCount, providerAvailableBookings, calculateEstimate, createBookingWithQuestionnaire, getTrackingStatus, getBookingOffersDebug, getBookingCandidates, markOnlinePaid, markCashPaid } from "../controllers/bookingController.js";
 
 const router = Router();
 
@@ -27,6 +27,8 @@ router.patch("/:id/reject", requireAuth, requireRole("provider"), rejectBooking)
 router.patch("/:id/complete", requireAuth, requireRole("provider"), completeBooking);
 router.patch("/:id/customer-complete", requireAuth, requireRole("customer"), customerCompleteBooking);
 router.patch("/:id/cancel", requireAuth, requireRole("customer"), cancelBooking);
+router.patch("/:id/mark-online-paid", requireAuth, requireRole("customer"), markOnlinePaid);
+router.patch("/:id/mark-cash-paid", requireAuth, requireRole("customer"), markCashPaid);
 // In future could be filtered; for now rely on /mine with status filter client side
 
 export default router;

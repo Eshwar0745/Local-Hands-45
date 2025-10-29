@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useMemo } from "react";
 import API from "../services/api";
 import EnhancedRatingModal from "../components/EnhancedRatingModal";
+import BillModal from "../components/BillModal";
 import WaitingScreen from "../components/WaitingScreen";
 import { RatingsAPI } from "../services/api.extras";
 import ServiceCard from "../components/ServiceCard";
@@ -16,6 +17,7 @@ import {
   FiStar,
   FiMapPin,
   FiTag,
+  FiFileText,
 } from "react-icons/fi";
 
 // ✅ Haversine formula for distance (km)
@@ -53,6 +55,7 @@ export default function CustomerHome() {
   const [sortBy, setSortBy] = useState("balanced"); // nearest | rating | balanced
   const [providerSelect, setProviderSelect] = useState({ open: false, aggregate: null });
   const [waitingBooking, setWaitingBooking] = useState(null); // bookingId while waiting for acceptance
+  const [billModal, setBillModal] = useState(null); // For bill payment modal
   
   // ✅ Questionnaire flow state
   const [serviceCatalog, setServiceCatalog] = useState(null);
@@ -991,6 +994,15 @@ export default function CustomerHome() {
                       {['requested','accepted'].includes(b.status) && (
                         <button onClick={async ()=>{ if(!window.confirm('Cancel this booking?')) return; try { await API.patch(`/bookings/${b._id}/cancel`); loadBookings(); } catch(e){ alert(e?.response?.data?.message || 'Failed to cancel'); } }} className='mt-1 inline-flex items-center px-3 py-1.5 text-xs font-medium border border-error dark:border-red-500 text-error dark:text-red-400 rounded-lg hover:bg-error/10 dark:hover:bg-red-500/20 transition-all duration-300'>Cancel</button>
                       )}
+                      {b.status === 'completed' && b.billDetails && (
+                        <button 
+                          onClick={() => setBillModal(b)} 
+                          className='mt-2 inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium bg-indigo-500 text-white rounded-lg hover:bg-indigo-600 transition-all duration-300 shadow-sm'
+                        >
+                          <FiFileText />
+                          {b.paymentStatus === 'paid' ? 'View Receipt' : 'View & Pay Bill'}
+                        </button>
+                      )}
                       {b.status === 'completed' && !b.customerRating && b.provider && (
                         <button onClick={() => setRateTarget(b)} className='mt-2 inline-flex items-center px-3 py-1.5 text-xs font-medium bg-brand-primary dark:bg-blue-500 text-white rounded-lg hover:bg-blue-600 dark:hover:bg-blue-600 transition-all duration-300 dark:shadow-glow-blue'>Rate Provider</button>
                       )}
@@ -1098,7 +1110,30 @@ export default function CustomerHome() {
             setWaitingBooking(null);
             loadBookings();
           }}
+          onCancel={async () => {
+            if (!window.confirm('Are you sure you want to cancel this booking?')) return;
+            try {
+              await API.patch(`/bookings/${waitingBooking}/cancel`);
+              setWaitingBooking(null);
+              loadBookings();
+            } catch (e) {
+              alert(e?.response?.data?.message || 'Failed to cancel booking');
+            }
+          }}
         />
+
+        {/* 💳 Bill Payment Modal */}
+        {billModal && (
+          <BillModal
+            booking={billModal}
+            onClose={() => setBillModal(null)}
+            onPaymentSuccess={() => {
+              setBillModal(null);
+              loadBookings();
+            }}
+            userRole="customer"
+          />
+        )}
       </div>
     </div>
   );

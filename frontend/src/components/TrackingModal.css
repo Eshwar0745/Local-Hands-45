@@ -1,0 +1,277 @@
+.tracking-modal {
+  background: white;
+  border-radius: 16px;
+  max-width: 600px;
+  width: 90%;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+  animation: slideUp 0.3s ease-out;
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.tracking-modal .modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 24px;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.tracking-modal .modal-header h2 {
+  margin: 0;
+  font-size: 1.5rem;
+  color: #333;
+}
+
+.tracking-modal .close-btn {
+  background: none;
+  border: none;
+  font-size: 2rem;
+  color: #666;
+  cursor: pointer;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  transition: all 0.2s;
+}
+
+.tracking-modal .close-btn:hover {
+  background: #f5f5f5;
+  color: #333;
+}
+
+.tracking-modal .modal-content {
+  padding: 24px;
+}
+
+.provider-info {
+  margin-bottom: 24px;
+  padding: 16px;
+  background: #f8f9fa;
+  border-radius: 12px;
+}
+
+.provider-info h3 {
+  margin: 0 0 8px 0;
+  font-size: 1.3rem;
+  color: #333;
+}
+
+.provider-info .service-name {
+  color: #666;
+  margin: 4px 0;
+  font-size: 1rem;
+}
+
+.provider-info .booking-status {
+  margin: 8px 0 0 0;
+  font-size: 0.95rem;
+}
+
+.provider-info .status-in_progress {
+  color: #2196f3;
+  font-weight: 600;
+}
+
+.provider-info .status-accepted {
+  color: #4caf50;
+  font-weight: 600;
+}
+
+.tracking-info {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.info-card {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px;
+  background: #fff;
+  border: 1px solid #e0e0e0;
+  border-radius: 12px;
+  transition: all 0.2s;
+}
+
+.info-card:hover {
+  border-color: #2196f3;
+  box-shadow: 0 2px 8px rgba(33, 150, 243, 0.1);
+}
+
+.info-card .icon {
+  font-size: 2rem;
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f0f7ff;
+  border-radius: 12px;
+}
+
+.info-card .label {
+  margin: 0;
+  font-size: 0.85rem;
+  color: #666;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.info-card .value {
+  margin: 4px 0 0 0;
+  font-size: 1.1rem;
+  color: #333;
+  font-weight: 500;
+}
+
+.map-section {
+  margin-bottom: 24px;
+}
+
+.map-placeholder {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-radius: 12px;
+  padding: 40px;
+  text-align: center;
+  color: white;
+  min-height: 200px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+}
+
+.map-placeholder .map-icon {
+  font-size: 4rem;
+  opacity: 0.9;
+}
+
+.map-placeholder p {
+  font-size: 1.1rem;
+  margin: 0;
+  opacity: 0.95;
+}
+
+.view-in-maps-btn {
+  background: white;
+  color: #667eea;
+  padding: 12px 24px;
+  border-radius: 8px;
+  text-decoration: none;
+  font-weight: 600;
+  transition: all 0.2s;
+  display: inline-block;
+  margin-top: 8px;
+}
+
+.view-in-maps-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.contact-section {
+  padding: 20px;
+  background: #fff3e0;
+  border-radius: 12px;
+  text-align: center;
+}
+
+.contact-label {
+  margin: 0 0 16px 0;
+  color: #666;
+  font-size: 0.95rem;
+}
+
+.contact-buttons {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+}
+
+.btn-contact {
+  padding: 12px 24px;
+  border-radius: 8px;
+  text-decoration: none;
+  font-weight: 600;
+  transition: all 0.2s;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.btn-contact.call {
+  background: #4caf50;
+  color: white;
+}
+
+.btn-contact.call:hover {
+  background: #45a049;
+  transform: translateY(-2px);
+}
+
+.btn-contact.whatsapp {
+  background: #25d366;
+  color: white;
+}
+
+.btn-contact.whatsapp:hover {
+  background: #20bd5a;
+  transform: translateY(-2px);
+}
+
+.tracking-modal .modal-footer {
+  padding: 16px 24px;
+  border-top: 1px solid #e0e0e0;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.tracking-modal .btn-close {
+  padding: 12px 32px;
+  background: #f5f5f5;
+  border: none;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-weight: 600;
+  color: #333;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.tracking-modal .btn-close:hover {
+  background: #e0e0e0;
+}
+
+/* Mobile responsive */
+@media (max-width: 768px) {
+  .tracking-modal {
+    width: 95%;
+    max-height: 95vh;
+  }
+
+  .contact-buttons {
+    flex-direction: column;
+  }
+
+  .btn-contact {
+    width: 100%;
+    justify-content: center;
+  }
+}

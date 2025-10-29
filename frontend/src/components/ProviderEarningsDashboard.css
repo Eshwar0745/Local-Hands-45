@@ -1,0 +1,336 @@
+.earnings-dashboard {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 20px;
+}
+
+.loading {
+  text-align: center;
+  padding: 40px;
+  color: #666;
+  font-size: 16px;
+}
+
+/* Earnings Summary Cards */
+.earnings-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 20px;
+  margin-bottom: 30px;
+}
+
+.earning-card {
+  background: white;
+  border-radius: 12px;
+  padding: 24px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.earning-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+}
+
+.earning-card.total {
+  border-left: 4px solid #007bff;
+}
+
+.earning-card.pending {
+  border-left: 4px solid #ffc107;
+}
+
+.earning-card.withdrawable {
+  border-left: 4px solid #28a745;
+}
+
+.card-icon {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+  flex-shrink: 0;
+}
+
+.earning-card.total .card-icon {
+  background-color: #e7f3ff;
+  color: #007bff;
+}
+
+.earning-card.pending .card-icon {
+  background-color: #fff3cd;
+  color: #ffc107;
+}
+
+.earning-card.withdrawable .card-icon {
+  background-color: #d4edda;
+  color: #28a745;
+}
+
+.card-content {
+  flex: 1;
+}
+
+.card-label {
+  font-size: 14px;
+  color: #666;
+  margin-bottom: 4px;
+}
+
+.card-value {
+  font-size: 28px;
+  font-weight: 700;
+  color: #333;
+  margin-bottom: 4px;
+}
+
+.card-sublabel {
+  font-size: 12px;
+  color: #999;
+}
+
+/* Section Styles */
+.section {
+  background: white;
+  border-radius: 12px;
+  padding: 24px;
+  margin-bottom: 20px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.section-title {
+  font-size: 20px;
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 20px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border-bottom: 2px solid #f0f0f0;
+  padding-bottom: 12px;
+}
+
+/* Jobs List */
+.jobs-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.job-card {
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  padding: 16px;
+  transition: box-shadow 0.2s;
+}
+
+.job-card:hover {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.job-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 12px;
+}
+
+.job-info {
+  flex: 1;
+}
+
+.job-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 4px;
+}
+
+.job-id {
+  font-size: 12px;
+  color: #666;
+}
+
+.job-amount .amount {
+  font-size: 20px;
+  font-weight: 700;
+  color: #28a745;
+}
+
+.job-amount .no-bill {
+  font-size: 14px;
+  color: #999;
+  font-style: italic;
+}
+
+.job-details {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 12px;
+  padding-top: 12px;
+  border-top: 1px solid #f0f0f0;
+}
+
+.detail-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.detail-item .label {
+  font-size: 12px;
+  color: #999;
+}
+
+.detail-item .value {
+  font-size: 14px;
+  color: #333;
+}
+
+.payment-method {
+  font-weight: 600;
+}
+
+/* Transactions List */
+.transactions-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.transaction-card {
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  padding: 16px;
+  transition: box-shadow 0.2s;
+}
+
+.transaction-card:hover {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.transaction-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 12px;
+}
+
+.transaction-info {
+  flex: 1;
+}
+
+.transaction-id {
+  font-size: 14px;
+  font-weight: 600;
+  color: #007bff;
+  margin-bottom: 4px;
+}
+
+.transaction-customer {
+  font-size: 14px;
+  color: #666;
+}
+
+.transaction-amounts {
+  text-align: right;
+}
+
+.amount-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 4px;
+  font-size: 14px;
+}
+
+.amount-row.total-amount {
+  font-weight: 600;
+  color: #333;
+}
+
+.amount-row.platform-fee {
+  color: #dc3545;
+  font-size: 12px;
+}
+
+.amount-row.earning {
+  font-weight: 700;
+  color: #28a745;
+  font-size: 16px;
+  margin-top: 4px;
+  padding-top: 4px;
+  border-top: 1px solid #f0f0f0;
+}
+
+.transaction-footer {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  padding-top: 12px;
+  border-top: 1px solid #f0f0f0;
+  font-size: 13px;
+}
+
+.payment-status {
+  padding: 4px 12px;
+  border-radius: 16px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.payment-status.completed {
+  background-color: #d4edda;
+  color: #155724;
+}
+
+.payment-status.pending {
+  background-color: #fff3cd;
+  color: #856404;
+}
+
+.transaction-date {
+  margin-left: auto;
+  color: #666;
+}
+
+/* Empty State */
+.empty-state {
+  text-align: center;
+  padding: 40px;
+  color: #999;
+  font-size: 14px;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .earnings-summary {
+    grid-template-columns: 1fr;
+  }
+
+  .job-header,
+  .transaction-header {
+    flex-direction: column;
+  }
+
+  .job-amount,
+  .transaction-amounts {
+    text-align: left;
+    margin-top: 8px;
+  }
+
+  .job-details {
+    grid-template-columns: 1fr;
+  }
+
+  .transaction-footer {
+    flex-wrap: wrap;
+  }
+}

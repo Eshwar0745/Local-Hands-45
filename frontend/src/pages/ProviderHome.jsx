@@ -3,6 +3,7 @@ import API from "../services/api";
 import { useAuth } from "../context/AuthContext";
 import useLiveLocation from "../hooks/useLiveLocation";
 import EnhancedRatingModal from "../components/EnhancedRatingModal";
+import BillModal from "../components/BillModal";
 import { RatingsAPI } from "../services/api.extras";
 import {
   FiBriefcase,
@@ -15,6 +16,7 @@ import {
   FiStar,
   FiClock,
   FiPower,
+  FiFileText,
 } from "react-icons/fi";
 import { Link } from "react-router-dom";
 
@@ -33,6 +35,7 @@ export default function ProviderHome() {
   const [customerProfile, setCustomerProfile] = useState(null);
   const [loadingProfile, setLoadingProfile] = useState(false);
   const [error, setError] = useState("");
+  const [billModal, setBillModal] = useState(null); // For showing bill modal
 
   // 🧭 Track live location when provider is live OR has an active booking
   const activeBooking = bookings.find((b) => b.status === "in_progress") || null;

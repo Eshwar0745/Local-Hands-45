@@ -12,6 +12,7 @@
     "seed:providers": "node src/seed/seedProviders.js",
     "seed:catalog": "node src/seed/seedCatalog.js",
     "seed:random-providers": "node src/seed/seedRandomProviders.js",
+    "seed:final-review": "node src/seed/seedFinalReview.js",
     "recompute:ratings": "node src/scripts/recomputeRatings.js",
     "migrate:services": "node src/scripts/migrateServicesToTemplates.js",
     "test": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js --runInBand"
@@ -28,6 +29,7 @@
     "google-auth-library": "^10.3.0",
     "jsonwebtoken": "^9.0.2",
     "live": "^0.1.19",
+    "mongodb-memory-server": "^10.1.4",
     "mongoose": "^8.18.2",
     "morgan": "^1.10.1",
     "multer": "^2.0.2",
