@@ -135,7 +135,13 @@ export default function ProviderHistory() {
                 <div className="mt-4 flex items-center justify-between">
                   <div>
                     <div className="text-blue-500 font-semibold">
-                      ₹{b.billDetails?.total || b.service?.price || 0}
+                      ₹{(b.billDetails?.total != null
+                        ? b.billDetails.total
+                        : (b.serviceDetails?.estimate?.total != null
+                            ? b.serviceDetails.estimate.total
+                            : (b.service?.price || 0)
+                          )
+                        ).toFixed(0)}
                     </div>
                     {b.paymentStatus && (
                       <div className={`text-xs mt-1 ${

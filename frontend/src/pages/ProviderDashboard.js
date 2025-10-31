@@ -6,6 +6,7 @@ import { FiClock, FiZap, FiCheck, FiX, FiBriefcase, FiShield, FiFileText } from 
 import { useAuth } from '../context/AuthContext';
 import ServiceSelectionModal from '../components/ServiceSelectionModal';
 import BillModal from '../components/BillModal';
+import TrackingModal from '../components/TrackingModal';
 
 export default function ProviderDashboard() {
   const [offers, setOffers] = useState([]); // pending offers
@@ -18,6 +19,7 @@ export default function ProviderDashboard() {
   const [showServiceModal, setShowServiceModal] = useState(false);
   const [showVerificationModal, setShowVerificationModal] = useState(false);
   const [billModal, setBillModal] = useState(null); // For bill modal
+  const [trackModal, setTrackModal] = useState({ open: false, booking: null, data: null });
   const navigate = useNavigate();
 
   const fetchOffers = async () => {
@@ -78,6 +80,15 @@ export default function ProviderDashboard() {
       fetchActiveBookings();
     } catch (e) {
       alert(e?.response?.data?.message || 'Failed to mark in progress');
+    }
+  };
+
+  const trackCustomer = async (booking) => {
+    try {
+      const { data } = await API.get(`/bookings/${booking._id}/tracking`);
+      setTrackModal({ open: true, booking, data });
+    } catch (e) {
+      alert(e?.response?.data?.message || 'Failed to load tracking info');
     }
   };
   
@@ -165,6 +176,13 @@ export default function ProviderDashboard() {
                     {secs != null ? `${secs}s left` : '—'}
                   </div>
                 </div>
+                {/* Estimate & Service summary */}
+                <div className="text-sm text-gray-600 dark:text-gray-300 mb-3">
+                  <div>{o.serviceCatalog?.name || o.serviceTemplate?.name || 'Service'}</div>
+                  {o.estimate?.total != null && (
+                    <div className="mt-1 font-medium text-green-600 dark:text-green-400">Estimated: ₹{o.estimate.total}</div>
+                  )}
+                </div>
                 <div className="h-1.5 bg-gray-200 dark:bg-gray-700 rounded overflow-hidden mb-4">
                   <div className="h-full bg-gradient-to-r from-blue-500 to-blue-600 dark:from-blue-600 dark:to-blue-500 transition-all" style={{ width: `${pct}%` }} />
                 </div>
@@ -206,6 +224,14 @@ export default function ProviderDashboard() {
                 
                 <div className="mb-4 text-sm text-gray-600 dark:text-gray-400">
                   <p>Customer: {booking.customer?.name || 'N/A'}</p>
+                  {booking.customer?.phone && (
+                    <p>
+                      Phone: <a href={`tel:${booking.customer.phone}`} className="text-blue-600 dark:text-blue-400 underline">{booking.customer.phone}</a>
+                    </p>
+                  )}
+                  {(booking.address || booking.customer?.address) && (
+                    <p>Address: {booking.address || booking.customer?.address}</p>
+                  )}
                   {booking.serviceDetails?.answers && (
                     <div className="mt-2 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
                       <p className="font-medium mb-1">Service Details:</p>
@@ -216,7 +242,7 @@ export default function ProviderDashboard() {
                       ))}
                       {booking.serviceDetails.estimate && (
                         <p className="text-xs mt-1 font-medium text-green-600 dark:text-green-400">
-                          Estimated: ₹{booking.serviceDetails.estimate.totalCost}
+                          Estimated: ₹{booking.serviceDetails.estimate.total}
                         </p>
                       )}
                     </div>
@@ -242,7 +268,7 @@ export default function ProviderDashboard() {
                         Mark Complete
                       </button>
                       <button
-                        onClick={() => navigate(`/provider/track/${booking._id}`)}
+                        onClick={() => trackCustomer(booking)}
                         className="px-4 py-2 bg-purple-500 hover:bg-purple-600 text-white text-sm font-medium rounded-lg transition-colors"
                       >
                         Track Location
@@ -351,6 +377,16 @@ export default function ProviderDashboard() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Tracking Modal */}
+      {trackModal.open && trackModal.booking && (
+        <TrackingModal
+          booking={trackModal.booking}
+          trackingData={trackModal.data}
+          viewerRole="provider"
+          onClose={() => setTrackModal({ open: false, booking: null, data: null })}
+        />
       )}
     </div>
   );

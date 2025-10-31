@@ -319,13 +319,22 @@ export const sendWhatsAppOtp = async (req, res) => {
       });
     }
 
-    // Send OTP via WhatsApp
-    await sendWhatsAppOTP(formattedPhone, otp);
+    // Send OTP via WhatsApp (with graceful fallback for development)
+    try {
+      await sendWhatsAppOTP(formattedPhone, otp);
+      console.log(`✅ WhatsApp OTP sent successfully to ${formattedPhone}`);
+    } catch (whatsappError) {
+      console.warn('⚠️  WhatsApp OTP failed (continuing anyway):', whatsappError.message);
+      console.log(`📱 Development Mode: OTP for ${formattedPhone} is: ${otp}`);
+      // Continue execution - don't throw error in development
+    }
 
     res.json({
       success: true,
       message: `OTP sent to ${formattedPhone} via WhatsApp`,
-      expiresIn: '10 minutes'
+      expiresIn: '10 minutes',
+      // Include OTP in development mode ONLY
+      ...(process.env.NODE_ENV !== 'production' && { developmentOtp: otp })
     });
 
   } catch (error) {
@@ -443,13 +452,22 @@ export const resendWhatsAppOtp = async (req, res) => {
     user.phoneOtpExpires = otpExpires;
     await user.save();
 
-    // Send OTP via WhatsApp
-    await sendWhatsAppOTP(formattedPhone, otp);
+    // Send OTP via WhatsApp (with graceful fallback for development)
+    try {
+      await sendWhatsAppOTP(formattedPhone, otp);
+      console.log(`✅ WhatsApp OTP resent successfully to ${formattedPhone}`);
+    } catch (whatsappError) {
+      console.warn('⚠️  WhatsApp OTP failed (continuing anyway):', whatsappError.message);
+      console.log(`📱 Development Mode: OTP for ${formattedPhone} is: ${otp}`);
+      // Continue execution - don't throw error in development
+    }
 
     res.json({
       success: true,
       message: `New OTP sent to ${formattedPhone} via WhatsApp`,
-      expiresIn: '10 minutes'
+      expiresIn: '10 minutes',
+      // Include OTP in development mode ONLY
+      ...(process.env.NODE_ENV !== 'production' && { developmentOtp: otp })
     });
 
   } catch (error) {

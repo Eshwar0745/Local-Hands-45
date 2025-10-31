@@ -138,6 +138,9 @@ const ProviderBookings = () => {
                       <p><strong>Phone:</strong> {booking.customer?.phone || 'N/A'}</p>
                       <p><strong>Address:</strong> {booking.address || 'N/A'}</p>
                       <p><strong>Scheduled:</strong> {new Date(booking.scheduledDate).toLocaleString()}</p>
+                      {booking.serviceDetails?.estimate?.total != null && (
+                        <p><strong>Estimated:</strong> ₹{booking.serviceDetails.estimate.total}</p>
+                      )}
                     </div>
 
                     {booking.status === 'in_progress' && (
@@ -232,6 +235,7 @@ const ProviderBookings = () => {
         <TrackingModal
           booking={selectedBooking}
           trackingData={trackingData}
+          viewerRole="provider"
           onClose={() => {
             setShowTrackingModal(false);
             setSelectedBooking(null);

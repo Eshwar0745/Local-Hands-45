@@ -49,17 +49,20 @@ export const sendWhatsAppOTP = async (phoneNumber, otp) => {
   try {
     // Get Twilio client (lazy initialization)
     const twilioClient = getTwilioClient();
-    const whatsappNumber = process.env.TWILIO_WHATSAPP_NUMBER;
+    const envFrom = process.env.TWILIO_WHATSAPP_NUMBER;
 
-    if (!whatsappNumber) {
+    if (!envFrom) {
       throw new Error('TWILIO_WHATSAPP_NUMBER not configured in .env file');
     }
+
+    // Normalize FROM to ensure it has the required whatsapp: prefix
+    const fromWhatsapp = envFrom.startsWith('whatsapp:') ? envFrom : `whatsapp:${envFrom}`;
 
     // Ensure phone number has + prefix
     const formattedPhone = phoneNumber.startsWith('+') ? phoneNumber : `+${phoneNumber}`;
     
     const message = await twilioClient.messages.create({
-      from: whatsappNumber,
+      from: fromWhatsapp,
       to: `whatsapp:${formattedPhone}`,
       body: `🔐 Your LocalHands verification code is: *${otp}*\n\nThis code will expire in 10 minutes.\n\nDo not share this code with anyone.`
     });

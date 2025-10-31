@@ -251,7 +251,7 @@ export const myOffers = async (req,res)=>{
       status: 'requested', 
       'offers.provider': myProviderId 
     })
-      .select('bookingId offers providerResponseTimeout serviceTemplate serviceCatalog service status')
+      .select('bookingId offers providerResponseTimeout serviceTemplate serviceCatalog service status serviceDetails.estimate serviceDetails.answers location')
       .populate('service')
       .populate('serviceTemplate','name')
       .populate('serviceCatalog', 'name')
@@ -283,6 +283,11 @@ export const myOffers = async (req,res)=>{
       serviceCatalog: b.serviceCatalog,
       service: b.service,
       timeoutAt: b.providerResponseTimeout,
+      estimate: b.serviceDetails?.estimate || null,
+      customerLocation: Array.isArray(b.location?.coordinates) ? {
+        lng: b.location.coordinates[0],
+        lat: b.location.coordinates[1]
+      } : null
     }));
     
     console.log('✅ Filtered offers for this provider:', mine.map(m => m.bookingId));
@@ -527,7 +532,9 @@ export const getTrackingStatus = async (req, res) => {
     const stale = !last || now - last > 30 * 1000; // 30s without update considered stale
 
     // Compute distance & ETA if both locations present
-    let distanceKm = booking.distanceFromCustomer || null;
+  // Preserve the last known distance as a fallback if live coords are bad/stale
+  const lastKnownDistanceKm = typeof booking.distanceFromCustomer === 'number' ? booking.distanceFromCustomer : null;
+  let distanceKm = lastKnownDistanceKm;
     let etaMinutes = null;
     let providerPoint = booking.providerLocation; // GeoJSON Point or undefined
     const hasCustomer = booking.location?.coordinates?.length === 2;
@@ -540,7 +547,7 @@ export const getTrackingStatus = async (req, res) => {
       }
     }
 
-    const hasProvider = providerPoint?.coordinates?.length === 2;
+  const hasProvider = providerPoint?.coordinates?.length === 2;
     if (hasProvider && hasCustomer) {
       const [plng, plat] = providerPoint.coordinates;
       const [clng, clat] = booking.location.coordinates;
@@ -552,6 +559,15 @@ export const getTrackingStatus = async (req, res) => {
         Math.sin(dLng / 2) ** 2;
       const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
       distanceKm = Number((R * c).toFixed(2));
+
+      // Guard: if provider location is clearly invalid (0,0) or unrealistically far, treat as unavailable
+      const isZeroZero = (plng === 0 && plat === 0);
+      const isUnrealistic = distanceKm > 100 && stale; // if long stale and >100km, likely fallback/bad
+      if (isZeroZero || isUnrealistic) {
+        // Mark provider coordinate unusable, but keep last known distance if present for ETA
+        distanceKm = lastKnownDistanceKm;
+        providerPoint = null;
+      }
     }
 
     if (distanceKm != null) {
@@ -562,7 +578,7 @@ export const getTrackingStatus = async (req, res) => {
     return res.json({
       bookingId: booking.bookingId,
       status: booking.status,
-      provider: hasProvider
+      provider: (providerPoint && providerPoint.coordinates && providerPoint.coordinates.length===2)
         ? { lat: providerPoint.coordinates[1], lng: providerPoint.coordinates[0], lastUpdate: booking.providerLastUpdate }
         : null,
       customer: hasCustomer
@@ -571,6 +587,7 @@ export const getTrackingStatus = async (req, res) => {
       stale,
       distanceKm,
       etaMinutes,
+      note: (!providerPoint ? 'Waiting for provider location update' : undefined)
     });
   } catch (e) {
     res.status(500).json({ message: e.message });
@@ -714,7 +731,8 @@ export const myBookings = async (req, res) => {
     if (req.userRole === "customer") {
       const list = await Booking.find({ customer: req.userId })
         .populate({ path: "service", populate: { path: "provider", select: "_id" } })
-        .populate("provider", "name rating ratingCount completedJobs")
+        // Include provider phone for customer-side contact in tracking modal
+        .populate("provider", "name rating ratingCount completedJobs phone")
         .populate('serviceTemplate','name')
         .sort("-createdAt");
       // attach review linkage if completed
@@ -740,7 +758,8 @@ export const myBookings = async (req, res) => {
           ]
         })
         .populate({ path: 'service', populate: { path: 'provider', select: '_id' } })
-        .populate('customer','name')
+  // Include customer's phone and address so providers can contact and navigate
+  .populate('customer','name phone address email')
         .populate('serviceTemplate','name')
         .sort('-createdAt');
 

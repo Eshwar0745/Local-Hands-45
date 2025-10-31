@@ -1,7 +1,27 @@
 import axios from "axios";
 
+// Determine API base URL safely for both local (http) and hosted (https) environments
+const resolveBaseURL = () => {
+  // Prefer explicit envs if provided
+  const envBase = process.env.REACT_APP_API_BASE || process.env.REACT_APP_API_URL || "http://localhost:5000/api";
+
+  // If running in browser on HTTPS but env points to HTTP (localhost), switch to a secure production fallback
+  if (typeof window !== "undefined") {
+    const isHttpsPage = window.location.protocol === "https:";
+    const isLocalhostPage = ["localhost", "127.0.0.1"].includes(window.location.hostname);
+
+    if (isHttpsPage && !isLocalhostPage && envBase.startsWith("http://")) {
+      // Use a production API if provided, else default Render backend
+      const prodFallback = process.env.REACT_APP_API_BASE_PROD || "https://localhands-backend.onrender.com/api";
+      return prodFallback;
+    }
+  }
+
+  return envBase;
+};
+
 const API = axios.create({
-  baseURL: process.env.REACT_APP_API_BASE || "http://localhost:5000/api",
+  baseURL: resolveBaseURL(),
 });
 
 // 🔹 Attach token on every request

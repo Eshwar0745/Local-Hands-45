@@ -198,7 +198,7 @@ const CustomerBookings = () => {
                       <p><strong>Provider:</strong> {booking.provider?.name || 'N/A'}</p>
                       <p><strong>Completed:</strong> {new Date(booking.completedAt || booking.updatedAt).toLocaleString()}</p>
                       
-                      {booking.billDetails && (
+                      {booking.billDetails && booking.billDetails.generatedAt && (
                         <div className="bill-preview">
                           <p className="bill-amount">₹{booking.billDetails.total.toFixed(2)}</p>
                           {booking.paymentStatus === 'paid' ? (
@@ -215,7 +215,7 @@ const CustomerBookings = () => {
                       )}
                     </div>
 
-                    {booking.billDetails && (
+                    {booking.billDetails && booking.billDetails.generatedAt && (
                       <button
                         onClick={() => handleViewBill(booking)}
                         className="btn-view-bill"
@@ -224,7 +224,7 @@ const CustomerBookings = () => {
                       </button>
                     )}
 
-                    {!booking.billDetails && booking.status === 'completed' && (
+                    {(!booking.billDetails || !booking.billDetails.generatedAt) && booking.status === 'completed' && (
                       <div className="awaiting-bill">
                         <p>⏳ Waiting for provider to generate bill</p>
                       </div>
@@ -263,6 +263,7 @@ const CustomerBookings = () => {
         <TrackingModal
           booking={selectedBooking}
           trackingData={trackingData}
+          viewerRole="customer"
           onClose={() => {
             setShowTrackingModal(false);
             setSelectedBooking(null);

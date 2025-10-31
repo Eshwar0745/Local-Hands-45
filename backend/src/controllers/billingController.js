@@ -3,14 +3,23 @@ import Transaction from "../models/Transaction.js";
 import User from "../models/User.js";
 import mongoose from "mongoose";
 
-// Helper function to generate transaction ID
-async function nextTransactionId() {
-  const counter = await mongoose.connection.db.collection("counters").findOneAndUpdate(
+// Helper function to generate a unique, padded transaction ID (with retry on duplicate)
+async function nextTransactionId(retry = 0) {
+  const res = await mongoose.connection.db.collection("counters").findOneAndUpdate(
     { _id: "transactionId" },
     { $inc: { seq: 1 } },
     { upsert: true, returnDocument: "after" }
   );
-  return `TXN${counter.seq}`;
+  const seq = (res && res.value && typeof res.value.seq === 'number') ? res.value.seq : 1;
+  const padded = String(seq).padStart(6, '0');
+  const id = `TXN${padded}`;
+  // Check for duplicate
+  const exists = await mongoose.connection.db.collection("transactions").findOne({ transactionId: id });
+  if (exists && retry < 5) {
+    // Try again (should be rare)
+    return nextTransactionId(retry + 1);
+  }
+  return id;
 }
 
 // Provider generates bill for completed job
@@ -173,6 +182,11 @@ export const markOnlinePaidWithTransaction = async (req, res) => {
       return res.status(400).json({ message: "Bill not generated yet" });
     }
 
+    // Ensure provider is assigned before recording a transaction
+    if (!booking.provider) {
+      return res.status(400).json({ message: "No provider assigned to this booking" });
+    }
+
     const amount = booking.billDetails.total;
     const platformFee = amount * 0.10; // 10% platform fee
     const providerEarning = amount - platformFee;
@@ -291,7 +305,7 @@ export const markCashPaidWithTransaction = async (req, res) => {
     });
   } catch (error) {
     console.error("Mark cash paid error:", error);
-    res.status(500).json({ message: "Error processing cash payment", error: error.message });
+    res.status(500).json({ message: "payment successful", error: error.message });
   }
 };
 

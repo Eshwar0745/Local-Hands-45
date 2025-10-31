@@ -9,6 +9,7 @@ const BillViewModal = ({ booking, bookingId, onClose, onPaymentComplete, onPayme
   const [error, setError] = useState('');
   const [paying, setPaying] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState(null);
+  const [razorpayKey, setRazorpayKey] = useState(process.env.REACT_APP_RAZORPAY_KEY_ID || '');
 
   // Normalize props: prefer explicit bookingId prop, else derive from booking
   const targetBookingId = useMemo(() => bookingId || booking?._id, [bookingId, booking]);
@@ -54,32 +55,56 @@ const BillViewModal = ({ booking, bookingId, onClose, onPaymentComplete, onPayme
     setError('');
 
     try {
+      // Fetch key from backend to ensure it matches the account used to create orders
+      let keyToUse = process.env.REACT_APP_RAZORPAY_KEY_ID || '';
+      try {
+        const { data: cfg } = await axios.get(`${process.env.REACT_APP_API_URL}/payments/config`);
+        if (cfg?.keyId) {
+          keyToUse = cfg.keyId; // use immediately for this checkout
+          setRazorpayKey(cfg.keyId); // update state for future
+        }
+      } catch (e) {
+        // Non-fatal; fallback to env var
+        console.warn('Could not fetch Razorpay key from backend, using env');
+      }
+
+      // Guard against invalid amount
+      const amount = Number(billData?.billDetails?.total || 0);
+      if (!amount || amount <= 0) {
+        setError('Bill amount is invalid or not generated yet. Please contact the provider.');
+        setPaying(false);
+        return;
+      }
+
       const scriptLoaded = await loadRazorpayScript();
       if (!scriptLoaded) {
         setError('Failed to load Razorpay. Please try again.');
         setPaying(false);
         return;
       }
-
-      const amount = billData.billDetails.total;
       // Try to create an order on the server for secure checkout
       let orderId = null;
+      let orderAmountPaise = Math.round(amount * 100);
       try {
         const token = localStorage.getItem('lh_token') || localStorage.getItem('token');
         const { data: orderRes } = await axios.post(
-          `${process.env.REACT_APP_API_URL}/payments/create-order`,
-          { amount },
+          `${process.env.REACT_APP_API_URL}/payments/create-order-for-booking/${targetBookingId}`,
+          {},
           { headers: { Authorization: `Bearer ${token}` } }
         );
         orderId = orderRes?.order?.id || null;
+        // Use server authoritative amount if available (already in paise)
+        if (orderRes?.order?.amount) {
+          orderAmountPaise = orderRes.order.amount;
+        }
       } catch (e) {
         console.warn('Create order failed, falling back to client-only checkout');
       }
 
       const options = {
-        key: process.env.REACT_APP_RAZORPAY_KEY_ID,
-        amount: Math.round(amount * 100), // Convert to paise
-        currency: 'INR',
+        key: keyToUse || razorpayKey || process.env.REACT_APP_RAZORPAY_KEY_ID,
+        amount: orderId ? undefined : orderAmountPaise, // when order present, let Razorpay derive amount
+        currency: orderId ? undefined : 'INR',
         name: 'LocalHands',
         description: `Payment for ${billData.serviceName}`,
         order_id: orderId || undefined,
@@ -103,12 +128,16 @@ const BillViewModal = ({ booking, bookingId, onClose, onPaymentComplete, onPayme
               }
             }
 
+            if (!response.razorpay_order_id) {
+              throw new Error('Missing order_id in Razorpay response');
+            }
+
             const verifyResponse = await axios.post(
               `${process.env.REACT_APP_API_URL}/billing/${targetBookingId}/mark-online-paid`,
               {
-                razorpay_order_id: response.razorpay_order_id || orderId || 'manual_' + Date.now(),
+                razorpay_order_id: response.razorpay_order_id,
                 razorpay_payment_id: response.razorpay_payment_id,
-                razorpay_signature: response.razorpay_signature || 'test_signature'
+                razorpay_signature: response.razorpay_signature
               },
               {
                 headers: { Authorization: `Bearer ${token}` }
@@ -137,7 +166,33 @@ const BillViewModal = ({ booking, bookingId, onClose, onPaymentComplete, onPayme
         }
       };
 
+      // Debug: log the key and order context to help diagnose 400s
+      try {
+        console.debug('[Razorpay] Opening checkout', { key: options.key?.slice(0, 8) + '...', orderId: options.order_id, amountPaise: options.amount });
+      } catch {}
+
       const razorpay = new window.Razorpay(options);
+
+      // Attach failure listeners to surface precise reasons from Razorpay
+      if (razorpay && typeof razorpay.on === 'function') {
+        razorpay.on('payment.failed', function (resp) {
+          console.error('[Razorpay] payment.failed', resp);
+          const msg = resp?.error?.description || resp?.error?.reason || 'Payment failed';
+          setError(msg);
+        });
+        // Some builds emit 'payment.error' or modal events
+        razorpay.on('payment.error', function (resp) {
+          console.error('[Razorpay] payment.error', resp);
+          const msg = resp?.error?.description || 'Payment error';
+          setError(msg);
+        });
+        razorpay.on('modal.failed', function (resp) {
+          console.error('[Razorpay] modal.failed', resp);
+        });
+        razorpay.on('modal.closed', function () {
+          console.info('[Razorpay] modal.closed');
+        });
+      }
       razorpay.open();
     } catch (err) {
       console.error('Razorpay payment error:', err);

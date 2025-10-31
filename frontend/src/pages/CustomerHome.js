@@ -968,18 +968,19 @@ export default function CustomerHome() {
                           <span className='flex items-center'>
                             <FiUser className="w-4 h-4 mr-1" /> {b.provider.name}
                           </span>
-                          {b.provider.rating && (
+                          {b.provider.rating != null && (
                             <span className='flex items-center'>
-                              <FiStar className="w-3 h-3 mr-1 text-warning dark:text-yellow-400" /> {b.provider.rating}
+                              <FiStar className="w-3 h-3 mr-1 text-warning dark:text-yellow-400" /> {Number(b.provider.rating).toFixed(2)}
                             </span>
                           )}
                           <button
                             onClick={async ()=>{ setLoadingProfile(true); try { const { data } = await API.get(`/providers/${b.provider._id}/profile`); setProviderProfile(data); } catch { alert('Failed to load provider profile'); } finally { setLoadingProfile(false); } }}
-                            className='text-brand-primary dark:text-blue-400 hover:text-blue-600 dark:hover:text-blue-500 text-xs underline transition-colors duration-300'>View Profile</button>
+                            className='inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-lg border border-blue-200 dark:border-blue-700 text-blue-600 dark:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors duration-300'
+                          >View Profile</button>
                           {(b.status === 'in_progress' || b.status === 'accepted') && (
                             <button
                               onClick={() => { setTrackTarget(b); }}
-                              className='text-brand-primary dark:text-blue-400 hover:text-blue-600 dark:hover:text-blue-500 text-xs underline transition-colors duration-300'
+                              className='inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-lg bg-purple-600 hover:bg-purple-700 text-white shadow-sm transition-colors duration-300'
                             >Track</button>
                           )}
                         </div>
@@ -987,10 +988,20 @@ export default function CustomerHome() {
                     </div>
 
                     <div className="text-right space-y-2">
-                      <p className="font-bold text-brand-primary dark:text-blue-400 text-lg">
-                        ₹{b.service?.price || 0}
-                      </p>
-                      <p className="text-xs text-brand-gray-500 dark:text-gray-400">Service fee</p>
+                      {(() => {
+                        const est = b?.serviceDetails?.estimate?.total;
+                        const billed = b?.billDetails?.total;
+                        const amount = billed != null ? billed : (est != null ? est : (b.service?.price || 0));
+                        let label = 'Service fee';
+                        if (billed != null) label = b.paymentStatus === 'paid' ? 'Paid' : 'Billed';
+                        else if (est != null) label = 'Estimated';
+                        return (
+                          <>
+                            <p className="font-bold text-brand-primary dark:text-blue-400 text-lg">₹{Number(amount).toFixed(0)}</p>
+                            <p className="text-xs text-brand-gray-500 dark:text-gray-400">{label}</p>
+                          </>
+                        );
+                      })()}
                       {['requested','accepted'].includes(b.status) && (
                         <button onClick={async ()=>{ if(!window.confirm('Cancel this booking?')) return; try { await API.patch(`/bookings/${b._id}/cancel`); loadBookings(); } catch(e){ alert(e?.response?.data?.message || 'Failed to cancel'); } }} className='mt-1 inline-flex items-center px-3 py-1.5 text-xs font-medium border border-error dark:border-red-500 text-error dark:text-red-400 rounded-lg hover:bg-error/10 dark:hover:bg-red-500/20 transition-all duration-300'>Cancel</button>
                       )}

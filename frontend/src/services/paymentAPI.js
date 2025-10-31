@@ -16,30 +16,39 @@ export const loadRazorpayScript = () => {
   });
 };
 
-// In absence of a backend payments API, create a light mock order client-side
-export const createRazorpayOrder = async ({ bookingId, amount }) => {
-  const key_id = process.env.REACT_APP_RAZORPAY_KEY_ID || "rzp_test_RT1oKKK4YicKmW";
-  const order = {
-    id: `order_${Math.random().toString(36).slice(2, 10)}`,
-    amount: Math.max(0, Math.round(Number(amount || 0) * 100)), // paise
-    key_id,
-    bookingId,
-    currency: "INR",
-  };
-  return { data: order };
+// Create a real Razorpay order via backend for a specific booking
+export const createRazorpayOrder = async ({ bookingId }) => {
+  const base = process.env.REACT_APP_API_URL || "/api";
+  const token = localStorage.getItem('lh_token') || localStorage.getItem('token');
+  const res = await axios.post(
+    `${base}/payments/create-order-for-booking/${bookingId}`,
+    {},
+    { headers: token ? { Authorization: `Bearer ${token}` } : {} }
+  );
+  // Return just the order object for compatibility with older callers
+  return { data: res.data.order };
 };
 
 // Mark online payment as paid on the backend (verification mocked here)
 export const verifyRazorpayPayment = async ({ bookingId, razorpay_order_id, razorpay_payment_id, razorpay_signature }) => {
   try {
-    const res = await axios.patch(`/api/bookings/${bookingId}/mark-online-paid`, {
-      razorpay_order_id,
-      razorpay_payment_id,
-      razorpay_signature,
-    });
+    const base = process.env.REACT_APP_API_URL || "/api";
+    const token = localStorage.getItem('lh_token') || localStorage.getItem('token');
+    // First, verify signature (optional but recommended when order exists)
+    await axios.post(
+      `${base}/payments/verify`,
+      { razorpay_order_id, razorpay_payment_id, razorpay_signature },
+      { headers: token ? { Authorization: `Bearer ${token}` } : {} }
+    );
+    // Then mark the booking as paid
+    const res = await axios.post(
+      `${base}/billing/${bookingId}/mark-online-paid`,
+      { razorpay_order_id, razorpay_payment_id, razorpay_signature },
+      { headers: token ? { Authorization: `Bearer ${token}` } : {} }
+    );
     return res;
   } catch (e) {
-    return { data: { success: false, error: e?.response?.data?.message || "Failed to mark online payment" } };
+    return { data: { success: false, error: e?.response?.data?.message || "Failed to verify payment" } };
   }
 };
 

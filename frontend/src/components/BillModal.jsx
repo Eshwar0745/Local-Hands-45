@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { FiX, FiCreditCard, FiDollarSign, FiCheck, FiSend } from 'react-icons/fi';
-import { loadRazorpayScript, createRazorpayOrder, verifyRazorpayPayment } from '../services/paymentAPI';
+import { loadRazorpayScript, createRazorpayOrder } from '../services/paymentAPI';
 import API from '../services/api';
 import './BillModal.css';
 
@@ -70,23 +70,47 @@ const BillModal = ({ booking, onClose, onPaymentSuccess, userRole }) => {
         return;
       }
 
-      // Create order
-      const { data: order } = await createRazorpayOrder({
-        bookingId: booking._id,
-        amount: billDetails.total
-      });
+      // Sanity check: valid positive amount
+      const amount = Number(billDetails?.total || 0);
+      if (!amount || amount <= 0) {
+        setMessage('❌ Bill amount invalid or not generated');
+        setPaymentLoading(false);
+        return;
+      }
+
+      // Create order via backend for authoritative amount
+      const { data: order } = await createRazorpayOrder({ bookingId: booking._id });
+
+      // Fetch key from backend config (fallback to env)
+      let keyToUse = process.env.REACT_APP_RAZORPAY_KEY_ID || '';
+      try {
+        const cfg = await API.get('/payments/config');
+        if (cfg?.data?.keyId) keyToUse = cfg.data.keyId;
+      } catch {
+        // non-fatal
+      }
 
       // Initialize Razorpay Checkout
       const options = {
-        key: order.key_id,
-        amount: order.amount,
-        currency: order.currency,
+        key: keyToUse,
+        // When using order_id, let Razorpay derive amount/currency from order
+        amount: undefined,
+        currency: undefined,
         name: 'LocalHands',
         description: `Payment for ${booking.serviceCatalog?.name || 'Service'}`,
         order_id: order.id,
         handler: async (response) => {
           try {
             setMessage('Verifying payment...');
+            // Optional: verify signature first (backend will also re-check)
+            try {
+              await API.post(`/payments/verify`, {
+                razorpay_order_id: response.razorpay_order_id,
+                razorpay_payment_id: response.razorpay_payment_id,
+                razorpay_signature: response.razorpay_signature
+              });
+            } catch {}
+
             await API.post(`/billing/${booking._id}/mark-online-paid`, {
               razorpay_order_id: response.razorpay_order_id,
               razorpay_payment_id: response.razorpay_payment_id,
@@ -117,7 +141,19 @@ const BillModal = ({ booking, onClose, onPaymentSuccess, userRole }) => {
         }
       };
 
+      // Debug and error listeners
+      try { console.debug('[Razorpay][BillModal] opening', { key: (options.key||'').slice(0,8)+'...', orderId: options.order_id }); } catch {}
       const razorpay = new window.Razorpay(options);
+      if (razorpay && typeof razorpay.on === 'function') {
+        razorpay.on('payment.failed', (resp) => {
+          console.error('[Razorpay][BillModal] payment.failed', resp);
+          setMessage(resp?.error?.description || 'Payment failed');
+        });
+        razorpay.on('payment.error', (resp) => {
+          console.error('[Razorpay][BillModal] payment.error', resp);
+          setMessage(resp?.error?.description || 'Payment error');
+        });
+      }
       razorpay.open();
       setPaymentLoading(false);
     } catch (error) {

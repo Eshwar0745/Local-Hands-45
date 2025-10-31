@@ -25,13 +25,16 @@ export default function TrackingMap({ provider, customer, providerLabel = 'Provi
   if (!provider && !customer)
     return <p className="text-center">Waiting for location updates…</p>;
 
-  const providerLat = provider?.lat || provider?.coordinates?.[1];
-  const providerLng = provider?.lng || provider?.coordinates?.[0];
-  const customerLat = customer?.lat || customer?.coordinates?.[1];
-  const customerLng = customer?.lng || customer?.coordinates?.[0];
+  // Helper to validate lat/lng
+  const isValid = (lat, lng) => typeof lat === 'number' && typeof lng === 'number' && lat <= 90 && lat >= -90 && lng <= 180 && lng >= -180 && !(lat === 0 && lng === 0);
 
-  const hasProvider = providerLat && providerLng;
-  const hasCustomer = customerLat && customerLng;
+  const providerLat = provider?.lat ?? provider?.coordinates?.[1];
+  const providerLng = provider?.lng ?? provider?.coordinates?.[0];
+  const customerLat = customer?.lat ?? customer?.coordinates?.[1];
+  const customerLng = customer?.lng ?? customer?.coordinates?.[0];
+
+  const hasProvider = isValid(providerLat, providerLng);
+  const hasCustomer = isValid(customerLat, customerLng);
 
   const initialCenter = hasProvider
     ? [providerLat, providerLng]

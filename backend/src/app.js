@@ -5,6 +5,7 @@ import dotenv from 'dotenv';
 import connectDB from './config/db.js';
 import { ensureAdmin } from './utils/bootstrapAdmin.js';
 import { ensureCatalog } from './utils/bootstrapCatalog.js';
+import { ensureServiceCatalogsFromTemplates } from './utils/ensureServiceCatalogsFromTemplates.js';
 
 import authRoutes from './routes/authRoutes.js';
 import mobileAuthRoutes from './routes/mobileAuthRoutes.js';
@@ -29,6 +30,7 @@ connectDB().then(async ()=>{
 	if (process.env.NODE_ENV !== 'test') {
 		await ensureAdmin();
 		await ensureCatalog();
+		await ensureServiceCatalogsFromTemplates();
 	}
 });
 

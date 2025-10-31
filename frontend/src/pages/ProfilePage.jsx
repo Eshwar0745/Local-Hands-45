@@ -30,6 +30,8 @@ import PlacesAutocomplete, {
 } from "react-places-autocomplete";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
+import { FiBriefcase } from "react-icons/fi";
+import ServiceSelectionModal from "../components/ServiceSelectionModal";
 
 // Custom marker icon
 const customIcon = new L.Icon({
@@ -131,6 +133,9 @@ export default function ProfilePage() {
   const [showMapFull, setShowMapFull] = useState(false);
   const [lastZoom, setLastZoom] = useState(15);
   const fetchGuard = useRef(false);
+  const [myServices, setMyServices] = useState([]);
+  const [servicesLoading, setServicesLoading] = useState(false);
+  const [showServiceModal, setShowServiceModal] = useState(false);
 
   // Load profile
   useEffect(() => {
@@ -156,6 +161,17 @@ export default function ProfilePage() {
         // ✅ Update AuthContext with fresh user data (especially onboardingStatus)
         // This ensures license verification status is always up-to-date
         saveSession(null, { ...user, ...u });
+
+        // If provider, also fetch their selected services (skills)
+        if ((u.role || user?.role) === 'provider') {
+          try {
+            setServicesLoading(true);
+            const prof = await API.get(`/providers/${u._id || user?._id}/profile`);
+            setMyServices(prof.data?.services || []);
+          } catch (e) {
+            console.warn('Failed to load provider services', e?.message);
+          } finally { setServicesLoading(false); }
+        }
       } catch (e) {
         setError("Failed to load profile");
       } finally {
@@ -439,10 +455,62 @@ export default function ProfilePage() {
               </div>
             )}
 
+            {/* ✅ Provider: My Services */}
+            {user?.role === 'provider' && (
+              <div className="mb-6 p-4 bg-gradient-to-r from-emerald-50 to-green-50 dark:from-emerald-900/20 dark:to-green-900/20 rounded-xl border border-emerald-200 dark:border-emerald-700">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-sm font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                    <FiBriefcase className="w-4 h-4" />
+                    My Services
+                  </h3>
+                  <button
+                    onClick={() => setShowServiceModal(true)}
+                    className="px-3 py-1.5 text-xs rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white"
+                  >
+                    Manage
+                  </button>
+                </div>
+                {servicesLoading ? (
+                  <div className="text-sm text-gray-600 dark:text-gray-400">Loading services…</div>
+                ) : myServices.length === 0 ? (
+                  <div className="text-sm text-gray-600 dark:text-gray-400">You haven't added any services yet. Click Manage to add your known services.</div>
+                ) : (
+                  <ul className="grid sm:grid-cols-2 gap-2">
+                    {myServices.map(s => (
+                      <li key={s._id} className="px-3 py-2 rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 flex items-center justify-between">
+                        <div>
+                          <div className="text-sm font-medium text-gray-900 dark:text-white">{s.name}</div>
+                          <div className="text-xs text-gray-500 dark:text-gray-400">{s.category || 'General'} • Base ₹{s.price}</div>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            )}
+
             <form onSubmit={handleSubmit} className="space-y-6">
               {/* Name */}
               <div>
                 <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+
+            {/* Service selection modal */}
+            <ServiceSelectionModal
+              isOpen={showServiceModal}
+              onClose={() => setShowServiceModal(false)}
+              onComplete={async () => {
+                setShowServiceModal(false);
+                // Refresh services list
+                try {
+                  setServicesLoading(true);
+                  const self = await API.get('/users/me');
+                  const prof = await API.get(`/providers/${self.data.user._id}/profile`);
+                  setMyServices(prof.data?.services || []);
+                } catch (e) {
+                  console.warn('Failed to refresh services after update');
+                } finally { setServicesLoading(false); }
+              }}
+            />
                   Full Name
                 </label>
                 <div className="flex items-center border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-gray-50 dark:bg-gray-900/50">

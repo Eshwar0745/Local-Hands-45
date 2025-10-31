@@ -205,7 +205,7 @@ export const updateLocation = async (req, res) => {
         booking.providerLocation = { type: "Point", coordinates: [lng, lat] };
         booking.providerLastUpdate = provider.locationUpdatedAt;
 
-        // Calculate distance from booking location
+        // Calculate distance from booking location (provider -> customer)
         if (booking.location?.coordinates?.length === 2) {
           const [blng, blat] = booking.location.coordinates;
           const R = 6371; // km
@@ -217,7 +217,8 @@ export const updateLocation = async (req, res) => {
               Math.cos((blat * Math.PI) / 180) * 
               Math.sin(dLng / 2) ** 2;
           const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-          booking.distanceFromProvider = Number((R * c).toFixed(2));
+          // Persist on canonical field used by getTrackingStatus
+          booking.distanceFromCustomer = Number((R * c).toFixed(2));
         }
         await booking.save();
 
@@ -238,7 +239,7 @@ export const updateLocation = async (req, res) => {
       success: true,
       provider,
       distanceFromCustomer,
-      bookingDistance: booking?.distanceFromProvider
+      bookingDistance: booking?.distanceFromCustomer
     });
   } catch (e) {
     console.error('Location update error:', e);

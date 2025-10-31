@@ -123,7 +123,13 @@ export default function CustomerHistory() {
 
                 <div className="text-right">
                   <div className="font-bold text-brand-primary dark:text-blue-400 text-lg">
-                    ₹{b.billDetails?.total || b.service?.price || 0}
+                    ₹{(b.billDetails?.total != null
+                      ? b.billDetails.total
+                      : (b.serviceDetails?.estimate?.total != null
+                          ? b.serviceDetails.estimate.total
+                          : (b.service?.price || 0)
+                        )
+                      ).toFixed(0)}
                   </div>
                   {b.paymentStatus && (
                     <div className={`text-xs mt-1 ${
