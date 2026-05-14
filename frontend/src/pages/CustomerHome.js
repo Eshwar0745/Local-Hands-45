@@ -322,7 +322,7 @@ export default function CustomerHome() {
     setBookingLoading(true);
     setBookingMsg("");
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('lh_token') || localStorage.getItem('token');
       if (!token) {
         alert('Please login to continue');
         window.location.href = '/login';
@@ -339,7 +339,8 @@ export default function CustomerHome() {
     } catch (error) {
       if (error.response?.status === 401) {
         alert('Session expired. Please login again.');
-        localStorage.removeItem('token');
+        localStorage.removeItem('lh_token');
+        localStorage.removeItem('lh_user');
         window.location.href = '/login';
         return;
       }

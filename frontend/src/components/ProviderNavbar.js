@@ -47,12 +47,44 @@ export default function ProviderNavbar() {
   const currentPath = loc.pathname;
 
   const toggleLive = async () => {
-    try {
-      setUpdating(true);
-      await setAvailability(!user.isAvailable);
-    } finally {
-      setUpdating(false);
+    if (!user) return;
+    if (user.isAvailable) {
+      try {
+        setUpdating(true);
+        await setAvailability(false);
+      } finally {
+        setUpdating(false);
+      }
+      return;
     }
+
+    // Going live requires location so customer matching can work.
+    if (!navigator.geolocation) {
+      alert("Geolocation is not supported by your browser.");
+      return;
+    }
+
+    setUpdating(true);
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        try {
+          await setAvailability(true, {
+            lng: position.coords.longitude,
+            lat: position.coords.latitude,
+          });
+        } catch (e) {
+          alert(e?.response?.data?.message || "Failed to go live");
+        } finally {
+          setUpdating(false);
+        }
+      },
+      (error) => {
+        console.error("Geolocation error:", error);
+        alert("Unable to get your location. Please enable location services.");
+        setUpdating(false);
+      },
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
   };
 
   const navItems = [

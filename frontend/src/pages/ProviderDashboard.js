@@ -5,6 +5,7 @@ import API from '../services/api';
 import { FiClock, FiZap, FiCheck, FiX, FiBriefcase, FiShield, FiFileText } from 'react-icons/fi';
 import { useAuth } from '../context/AuthContext';
 import ServiceSelectionModal from '../components/ServiceSelectionModal';
+import BillGenerationModal from '../components/BillGenerationModal';
 import BillModal from '../components/BillModal';
 import TrackingModal from '../components/TrackingModal';
 
@@ -19,6 +20,8 @@ export default function ProviderDashboard() {
   const [showServiceModal, setShowServiceModal] = useState(false);
   const [showVerificationModal, setShowVerificationModal] = useState(false);
   const [billModal, setBillModal] = useState(null); // For bill modal
+  const [showBillModal, setShowBillModal] = useState(false);
+  const [selectedBooking, setSelectedBooking] = useState(null);
   const [trackModal, setTrackModal] = useState({ open: false, booking: null, data: null });
   const navigate = useNavigate();
 
@@ -109,6 +112,17 @@ export default function ProviderDashboard() {
   
   const viewBill = (booking) => {
     setBillModal(booking);
+  };
+
+  const handleGenerateBill = (booking) => {
+    setSelectedBooking(booking);
+    setShowBillModal(true);
+  };
+
+  const handleBillGenerated = () => {
+    setShowBillModal(false);
+    setSelectedBooking(null);
+    fetchActiveBookings();
   };
 
   return (
@@ -298,18 +312,18 @@ export default function ProviderDashboard() {
                     </>
                   )}
                   
-                  {booking.status === 'completed' && !booking.bill && (
+                  {booking.status === 'completed' && (!booking.billDetails || !booking.billDetails.total || booking.billDetails.total <= 0) && (
                     <button
-                      onClick={() => generateBill(booking)}
+                      onClick={() => handleGenerateBill(booking)}
                       className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-sm font-medium rounded-lg transition-colors"
                     >
                       Generate Bill
                     </button>
                   )}
-                  
-                  {booking.bill && (
+
+                  {booking.billDetails?.total > 0 && (
                     <span className="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 text-sm font-medium rounded-lg">
-                      Bill Generated - ₹{booking.bill.totalAmount}
+                      Bill Generated - ₹{booking.billDetails.total}
                     </span>
                   )}
                 </div>
@@ -339,6 +353,18 @@ export default function ProviderDashboard() {
             fetchActiveBookings();
           }}
           userRole="provider"
+        />
+      )}
+
+      {/* Bill Generation Modal */}
+      {showBillModal && selectedBooking && (
+        <BillGenerationModal
+          booking={selectedBooking}
+          onClose={() => {
+            setShowBillModal(false);
+            setSelectedBooking(null);
+          }}
+          onBillGenerated={handleBillGenerated}
         />
       )}
 

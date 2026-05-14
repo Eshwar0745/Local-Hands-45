@@ -98,7 +98,18 @@ export const AuthProvider = ({ children }) => {
     return data.user;
   };
 
-  const logout = () => clearSession();
+  const logout = async () => {
+    try {
+      if (user?.role === "provider" && user?.isAvailable) {
+        await setAvailability(false);
+      }
+    } catch (e) {
+      // Best-effort: still clear session on failure.
+      console.warn("Failed to set provider offline during logout:", e?.message || e);
+    } finally {
+      clearSession();
+    }
+  };
 
   // 🔹 WhatsApp login handler
   const loginWithWhatsApp = (responseData) => {

@@ -41,7 +41,7 @@ function ServiceQuestionnaire({ service, onEstimateCalculated }) {
 
     setLoading(true);
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('lh_token'); // FIX: The app uses 'lh_token' not 'token'
       
       if (!token) {
         alert('Please login to continue');
@@ -67,7 +67,8 @@ function ServiceQuestionnaire({ service, onEstimateCalculated }) {
         // Check if token expired
         if (response.status === 401) {
           alert('Session expired. Please login again.');
-          localStorage.removeItem('token');
+          localStorage.removeItem('lh_token'); // Fix: remove correct token key
+          localStorage.removeItem('lh_user');
           window.location.href = '/login';
           return;
         }
