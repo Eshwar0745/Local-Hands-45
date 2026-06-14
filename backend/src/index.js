@@ -22,6 +22,39 @@ dotenv.config({ path: path.join(__dirname, '../.env') });
 	console.log(`[startup] TWILIO_AUTH_TOKEN present=${token ? 'yes' : 'no'} length=${token.length}`);
 	console.log(`[startup] TWILIO_WHATSAPP_NUMBER present=${number ? 'yes' : 'no'} value=${number}`);
 })();
+import http from 'http';
+import { Server } from 'socket.io';
 import app from './app.js';
+
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => console.log(`✅ Server running on port ${PORT}`));
+const server = http.createServer(app);
+
+const io = new Server(server, {
+  cors: {
+    origin: [
+      'http://localhost:3000',
+      'http://localhost:3001',
+      'https://local-hands-01.vercel.app'
+    ],
+    credentials: true
+  }
+});
+
+// Attach io to express app so controllers can access it
+app.set('io', io);
+
+io.on('connection', (socket) => {
+  console.log(`🔌 Client connected: ${socket.id}`);
+  
+  // Join a room for a specific booking/user
+  socket.on('join', (roomName) => {
+    socket.join(roomName);
+    console.log(`🔌 Client ${socket.id} joined room: ${roomName}`);
+  });
+  
+  socket.on('disconnect', () => {
+    console.log(`🔌 Client disconnected: ${socket.id}`);
+  });
+});
+
+server.listen(PORT, () => console.log(`✅ Server running on port ${PORT}`));

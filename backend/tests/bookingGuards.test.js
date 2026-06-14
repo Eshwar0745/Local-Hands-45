@@ -22,7 +22,7 @@ describe('Booking guards', () => {
     await Category.deleteMany({});
     
     customer = await User.create({ name: 'Cust', email: 'cust@test.com', password: await bcrypt.hash('x',10), role: 'customer' });
-    provider = await User.create({ name: 'Prov', email: 'prov2@test.com', password: await bcrypt.hash('x',10), role: 'provider' });
+    provider = await User.create({ name: 'Prov', email: 'prov2@test.com', password: await bcrypt.hash('x',10), role: 'provider', onboardingStatus: 'approved' });
     legacyService = await Service.create({ name: 'Legacy', category: 'Old', price: 10, provider: provider._id });
     const cat = await Category.create({ name: 'Home Services'});
     const tplActive = await ServiceTemplate.create({ name: 'General Cleaning', category: cat._id, defaultPrice: 50, active: true });

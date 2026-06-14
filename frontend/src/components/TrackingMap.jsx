@@ -62,14 +62,35 @@ export default function TrackingMap({ provider, customer, providerLabel = 'Provi
           scrollWheelZoom={true}
           style={{ height: "100%", width: "100%" }}
         >
+        <style>{`
+          @keyframes route-marching-ants {
+            to {
+              stroke-dashoffset: -20;
+            }
+          }
+          .animated-route {
+            stroke-dasharray: 10, 10;
+            animation: route-marching-ants 1.2s linear infinite;
+          }
+        `}</style>
+
         <TileLayer
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-          attribution='© <a href="https://www.openstreetmap.org/">OpenStreetMap</a> contributors'
+          url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
+          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
         />
 
         {/* Provider marker */}
         {hasProvider && (
-          <Marker position={[providerLat, providerLng]}>
+          <Marker 
+            position={[providerLat, providerLng]}
+            icon={
+              new L.Icon({
+                iconUrl: "https://img.icons8.com/color/48/worker-male.png",
+                iconSize: [36, 36],
+                iconAnchor: [18, 36],
+              })
+            }
+          >
             <Popup>{providerLabel}</Popup>
           </Marker>
         )}
@@ -80,10 +101,9 @@ export default function TrackingMap({ provider, customer, providerLabel = 'Provi
             position={[customerLat, customerLng]}
             icon={
               new L.Icon({
-                iconUrl:
-                  "https://cdn-icons-png.flaticon.com/512/64/64113.png",
-                iconSize: [32, 32],
-                iconAnchor: [16, 32],
+                iconUrl: "https://img.icons8.com/color/48/home.png",
+                iconSize: [36, 36],
+                iconAnchor: [18, 36],
               })
             }
           >
@@ -99,7 +119,12 @@ export default function TrackingMap({ provider, customer, providerLabel = 'Provi
                 [providerLat, providerLng],
                 [customerLat, customerLng]
               ]}
-              pathOptions={{ color: '#2563eb', weight: 4, opacity: 0.8 }}
+              pathOptions={{ 
+                color: '#2563eb', 
+                weight: 5, 
+                opacity: 0.85,
+                className: 'animated-route'
+              }}
             />
             <FitBoundsOnce a={[providerLat, providerLng]} b={[customerLat, customerLng]} />
           </>

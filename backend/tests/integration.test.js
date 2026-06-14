@@ -80,6 +80,7 @@ describe('Integration Tests - Full Customer Journey', () => {
       ratingCount: 50,
       isAvailable: true,
       isApproved: true,
+      onboardingStatus: 'approved',
       location: { type: 'Point', coordinates: [78.4890, 17.3860] }, // ~2km
       locationUpdatedAt: new Date()
     });
@@ -93,6 +94,7 @@ describe('Integration Tests - Full Customer Journey', () => {
       ratingCount: 30,
       isAvailable: true,
       isApproved: true,
+      onboardingStatus: 'approved',
       location: { type: 'Point', coordinates: [78.5067, 17.3950] }, // ~6km
       locationUpdatedAt: new Date()
     });
@@ -106,6 +108,7 @@ describe('Integration Tests - Full Customer Journey', () => {
       ratingCount: 20,
       isAvailable: true,
       isApproved: true,
+      onboardingStatus: 'approved',
       location: { type: 'Point', coordinates: [78.5267, 17.4050] }, // ~10km
       locationUpdatedAt: new Date()
     });
@@ -185,7 +188,7 @@ describe('Integration Tests - Full Customer Journey', () => {
           preferredDateTime: new Date(Date.now() + 86400000).toISOString(),
           serviceDetails: {
             answers: { ac_type: 'Split', issues: ['Gas refilling'], units: 2 },
-            estimate: { total: 800 }
+            estimate: { total: 770 }
           },
           sortPreference: 'rating',
           location: { lng: 78.4867, lat: 17.3850 }
@@ -219,7 +222,7 @@ describe('Integration Tests - Full Customer Journey', () => {
           preferredDateTime: new Date(Date.now() + 86400000).toISOString(),
           serviceDetails: {
             answers: { ac_type: 'Window', issues: ['Complete servicing'], units: 1 },
-            estimate: { total: 600 }
+            estimate: { total: 720 }
           },
           sortPreference: 'nearby',
           location: { lng: 78.4867, lat: 17.3850 }
@@ -250,7 +253,7 @@ describe('Integration Tests - Full Customer Journey', () => {
           preferredDateTime: new Date(Date.now() + 86400000).toISOString(),
           serviceDetails: {
             answers: { ac_type: 'Split', issues: ['Gas refilling'], units: 1 },
-            estimate: { total: 700 }
+            estimate: { total: 770 }
           },
           sortPreference: 'rating',
           location: { lng: 78.4867, lat: 17.3850 }
@@ -284,7 +287,7 @@ describe('Integration Tests - Full Customer Journey', () => {
           preferredDateTime: new Date(Date.now() + 86400000).toISOString(),
           serviceDetails: {
             answers: { ac_type: 'Window', issues: ['Complete servicing'], units: 1 },
-            estimate: { total: 500 }
+            estimate: { total: 720 }
           },
           sortPreference: 'nearby',
           location: { lng: 78.4867, lat: 17.3850 }
@@ -311,7 +314,7 @@ describe('Integration Tests - Full Customer Journey', () => {
           preferredDateTime: new Date(Date.now() + 86400000).toISOString(),
           serviceDetails: {
             answers: { ac_type: 'Split', issues: ['Gas refilling'], units: 1 },
-            estimate: { total: 700 }
+            estimate: { total: 770 }
           },
           sortPreference: 'rating',
           location: { lng: 78.4867, lat: 17.3850 }

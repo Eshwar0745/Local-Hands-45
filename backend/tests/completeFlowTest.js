@@ -11,6 +11,7 @@ import chalk from 'chalk';
 const BASE_URL = 'http://localhost:5001/api';
 let customerToken = '';
 let providerToken = '';
+let providerId = '';
 let adminToken = '';
 let bookingId = '';
 let serviceTemplateIds = [];
@@ -118,6 +119,7 @@ async function test4_RegisterProvider() {
     log.success('Provider registered');
     log.data(`User ID: ${res.data.user._id}`);
     providerToken = res.data.token;
+    providerId = res.data.user._id;
   } catch (e) {
     log.error(`Registration failed: ${e.response?.data?.message || e.message}`);
     throw e;
@@ -205,6 +207,42 @@ async function test9_ProviderSetLocation() {
     log.data(`Location: [${res.data.user.location?.coordinates[0]}, ${res.data.user.location?.coordinates[1]}]`);
   } catch (e) {
     log.error(`Location update failed: ${e.response?.data?.message || e.message}`);
+    throw e;
+  }
+}
+
+async function test9a_SubmitVerification() {
+  log.step('TEST 9a: Provider Submits License and Work Proof Verification');
+  try {
+    const res = await api.post('/providers/submit-verification', {
+      licenseImage: 'http://cloudinary.com/license.jpg',
+      licenseType: 'aadhar',
+      licenseNumber: '1234-5678-9012',
+      workBeforeImage: 'http://cloudinary.com/before.jpg',
+      workAfterImage: 'http://cloudinary.com/after.jpg'
+    }, {
+      headers: { Authorization: `Bearer ${providerToken}` }
+    });
+    log.success('Verification details submitted successfully');
+    log.data(`Status: ${res.data.user.onboardingStatus}`);
+    log.data(`Work Before Image: ${res.data.user.workBeforeImage}`);
+    log.data(`Work After Image: ${res.data.user.workAfterImage}`);
+  } catch (e) {
+    log.error(`Verification submission failed: ${e.response?.data?.message || e.message}`);
+    throw e;
+  }
+}
+
+async function test9b_ApproveProvider() {
+  log.step('TEST 9b: Admin Approves Provider Verification');
+  try {
+    const res = await api.post(`/admin/verifications/${providerId}/approve`, {}, {
+      headers: { Authorization: `Bearer ${adminToken}` }
+    });
+    log.success('Provider approved by Admin');
+    log.data(`Status: ${res.data.provider.onboardingStatus}`);
+  } catch (e) {
+    log.error(`Provider approval failed: ${e.response?.data?.message || e.message}`);
     throw e;
   }
 }
@@ -521,6 +559,8 @@ async function runAllTests() {
     test7_GetServiceCatalog,
     test8_ProviderSelectServices,
     test9_ProviderSetLocation,
+    test9a_SubmitVerification,
+    test9b_ApproveProvider,
     test10_ProviderGoLive,
     test11_CustomerCreateBooking,
     test12_ProviderCheckOffers,

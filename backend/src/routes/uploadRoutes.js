@@ -76,6 +76,61 @@ router.post(
   }
 );
 
+// Upload work image for providers (before/after proof)
+router.post(
+  '/work-image',
+  requireAuth,
+  requireRole('provider'),
+  upload.single('work_image'),
+  async (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ message: 'No file uploaded' });
+      }
+
+      // Upload to Cloudinary using upload_stream
+      const result = await new Promise((resolve, reject) => {
+        const uploadStream = cloudinary.uploader.upload_stream(
+          {
+            folder: 'localhands/work_images',
+            resource_type: 'image',
+            public_id: `work_${req.user.id}_${Date.now()}`,
+            transformation: [
+              { width: 1200, height: 1200, crop: 'limit' }, // Limit max size
+              { quality: 'auto:good' }, // Auto quality optimization
+              { fetch_format: 'auto' }, // Auto format (WebP if supported)
+            ],
+          },
+          (error, result) => {
+            if (error) {
+              console.error('Cloudinary upload error:', error);
+              reject(error);
+            } else {
+              resolve(result);
+            }
+          }
+        );
+
+        // Convert buffer to stream and pipe to Cloudinary
+        uploadStream.end(req.file.buffer);
+      });
+
+      res.json({
+        success: true,
+        url: result.secure_url,
+        publicId: result.public_id,
+        message: 'Work image uploaded successfully',
+      });
+    } catch (error) {
+      console.error('Upload error:', error);
+      res.status(500).json({ 
+        message: 'Upload failed', 
+        error: error.message 
+      });
+    }
+  }
+);
+
 // Delete license image (optional - for cleanup)
 router.delete(
   '/license/:publicId',

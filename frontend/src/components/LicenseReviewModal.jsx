@@ -166,6 +166,65 @@ export default function LicenseReviewModal({ provider, onClose, onAction }) {
             )}
           </div>
 
+          {/* Past Work Proof (Before & After Images) */}
+          <div className="space-y-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+              Work Proof (Before / After)
+            </h3>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Before Image */}
+              <div>
+                <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">Before Image</p>
+                {provider.workBeforeImage ? (
+                  <div className="relative group">
+                    <img
+                      src={provider.workBeforeImage}
+                      alt="Work Before"
+                      className="w-full h-48 object-cover rounded-lg border-2 border-gray-200 dark:border-gray-700 shadow-md cursor-pointer hover:shadow-lg transition-shadow"
+                      onClick={() => window.open(provider.workBeforeImage, '_blank')}
+                    />
+                    <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-10 rounded-lg transition-opacity flex items-center justify-center">
+                      <span className="opacity-0 group-hover:opacity-100 text-white text-xs font-medium bg-black bg-opacity-50 px-3 py-1.5 rounded-lg">
+                        Click to enlarge
+                      </span>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2 text-gray-500 dark:text-gray-400 border border-dashed rounded-lg p-4 justify-center bg-gray-50 dark:bg-gray-900">
+                    <FiImage className="w-5 h-5" />
+                    <span>No "Before" image uploaded</span>
+                  </div>
+                )}
+              </div>
+
+              {/* After Image */}
+              <div>
+                <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">After Image</p>
+                {provider.workAfterImage ? (
+                  <div className="relative group">
+                    <img
+                      src={provider.workAfterImage}
+                      alt="Work After"
+                      className="w-full h-48 object-cover rounded-lg border-2 border-gray-200 dark:border-gray-700 shadow-md cursor-pointer hover:shadow-lg transition-shadow"
+                      onClick={() => window.open(provider.workAfterImage, '_blank')}
+                    />
+                    <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-10 rounded-lg transition-opacity flex items-center justify-center">
+                      <span className="opacity-0 group-hover:opacity-100 text-white text-xs font-medium bg-black bg-opacity-50 px-3 py-1.5 rounded-lg">
+                        Click to enlarge
+                      </span>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2 text-gray-500 dark:text-gray-400 border border-dashed rounded-lg p-4 justify-center bg-gray-50 dark:bg-gray-900">
+                    <FiImage className="w-5 h-5" />
+                    <span>No "After" image uploaded</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
           {/* Rejection Reason (if applicable) */}
           {provider.onboardingStatus === 'rejected' && provider.rejectionReason && (
             <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">

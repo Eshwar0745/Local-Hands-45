@@ -960,6 +960,81 @@ export const getPendingCount = async (req, res) => {
     res.status(500).json({ message: e.message });
   }
 };
+// Helper to compute estimate dynamically based on catalog config and base price override
+export const computeEstimateHelper = (serviceCatalog, answers, basePriceOverride = null) => {
+  const pricing = serviceCatalog.pricing;
+  let serviceCharge = basePriceOverride !== null ? basePriceOverride : pricing.basePrice;
+
+  const getOptionPrice = (optionPrices, key, optionValue) => {
+    if (!optionPrices) return 0;
+    const prefixedKey = `${key}_${optionValue}`;
+    if (typeof optionPrices.get === 'function') {
+      return optionPrices.get(prefixedKey) || optionPrices.get(optionValue) || 0;
+    }
+    return optionPrices[prefixedKey] || optionPrices[optionValue] || 0;
+  };
+
+  const getComplexityMultiplier = (complexityMultipliers, complexityValue) => {
+    if (!complexityMultipliers) return 1.0;
+    if (typeof complexityMultipliers.get === 'function') {
+      return complexityMultipliers.get(complexityValue) || 1.0;
+    }
+    return complexityMultipliers[complexityValue] || 1.0;
+  };
+  
+  if (answers && pricing.optionPrices) {
+    Object.entries(answers).forEach(([key, value]) => {
+      if (Array.isArray(value)) {
+        value.forEach(option => {
+          const price = getOptionPrice(pricing.optionPrices, key, option);
+          if (price) serviceCharge += price;
+        });
+      } else if (typeof value === 'string') {
+        const price = getOptionPrice(pricing.optionPrices, key, value);
+        if (price) serviceCharge += price;
+      } else if (key === 'area' && typeof value === 'number') {
+        const base = basePriceOverride !== null ? basePriceOverride : pricing.basePrice;
+        serviceCharge = base * value;
+        if (answers.finish) {
+          const finishPrice = getOptionPrice(pricing.optionPrices, 'finish', answers.finish);
+          if (finishPrice) serviceCharge += (finishPrice * value);
+        }
+      }
+    });
+  }
+  
+  if (pricing.quantityMultiplier && answers) {
+    const quantityFields = ['numberOfUnits', 'quantity', 'numberOfCameras', 'numberOfPoints', 'numberOfFixtures'];
+    for (const field of quantityFields) {
+      if (answers[field] && typeof answers[field] === 'number') {
+        serviceCharge = serviceCharge * answers[field];
+        break;
+      }
+    }
+  }
+  
+  if (pricing.complexityMultipliers && answers && answers.complexity) {
+    const multiplier = getComplexityMultiplier(pricing.complexityMultipliers, answers.complexity);
+    serviceCharge = serviceCharge * multiplier;
+  }
+  
+  const visitCharge = pricing.visitCharge || 0;
+  const platformFee = Math.max(20, Math.round(serviceCharge * 0.012)); // 1.2%
+  const subtotal = serviceCharge + visitCharge;
+  const total = subtotal + platformFee;
+  
+  return {
+    serviceCharge: Math.round(serviceCharge),
+    visitCharge,
+    platformFee,
+    subtotal: Math.round(subtotal),
+    total: Math.round(total),
+    breakdown: {
+      serviceName: serviceCatalog.name,
+      answers
+    }
+  };
+};
 
 // Calculate estimate based on service catalog and questionnaire answers
 export const calculateEstimate = async (req, res) => {
@@ -971,68 +1046,8 @@ export const calculateEstimate = async (req, res) => {
       return res.status(404).json({ message: 'Service not found' });
     }
     
-    const pricing = serviceCatalog.pricing;
-    let serviceCharge = pricing.basePrice;
-    
-    // Calculate based on answers and pricing rules
-    Object.entries(answers).forEach(([key, value]) => {
-      if (Array.isArray(value)) {
-        // Checkbox - add all selected option prices
-        value.forEach(option => {
-          const price = pricing.optionPrices.get(option);
-          if (price) serviceCharge += price;
-        });
-      } else if (typeof value === 'string') {
-        // Radio/select - add option price
-        const price = pricing.optionPrices.get(value);
-        if (price) serviceCharge += price;
-      } else if (key === 'area' && typeof value === 'number') {
-        // Special case for area-based pricing (painting)
-        serviceCharge = pricing.basePrice * value;
-        
-        // Add finish price
-        if (answers.finish) {
-          const finishPrice = pricing.optionPrices.get(answers.finish);
-          if (finishPrice) serviceCharge += (finishPrice * value);
-        }
-      }
-    });
-    
-    // Apply quantity multiplier
-    if (pricing.quantityMultiplier) {
-      const quantityFields = ['numberOfUnits', 'quantity', 'numberOfCameras', 'numberOfPoints', 'numberOfFixtures'];
-      for (const field of quantityFields) {
-        if (answers[field] && typeof answers[field] === 'number') {
-          serviceCharge = serviceCharge * answers[field];
-          break;
-        }
-      }
-    }
-    
-    // Apply complexity multiplier
-    if (pricing.complexityMultipliers && answers.complexity) {
-      const multiplier = pricing.complexityMultipliers.get(answers.complexity) || 1.0;
-      serviceCharge = serviceCharge * multiplier;
-    }
-    
-    const visitCharge = pricing.visitCharge || 0;
-    const platformFee = Math.max(20, Math.round(serviceCharge * 0.012)); // 1.2%
-    const subtotal = serviceCharge + visitCharge;
-    const total = subtotal + platformFee;
-    
-    res.json({
-      estimate: {
-        serviceCharge: Math.round(serviceCharge),
-        visitCharge,
-        platformFee,
-        subtotal: Math.round(subtotal),
-        total: Math.round(total),
-        breakdown: {
-          serviceName: serviceCatalog.name,
-          answers
-        }
-      }
-    });
+    const estimate = computeEstimateHelper(serviceCatalog, answers);
+    res.json({ estimate });
     
   } catch (error) {
     console.error('Estimate calculation error:', error);
@@ -1080,7 +1095,9 @@ export const createBookingWithQuestionnaire = async (req, res) => {
     
     let services = await Service.find({
       name: { $regex: nameRegex }
-    }).populate('provider','name rating ratingCount isAvailable location');
+    })
+      .populate('provider','name rating ratingCount isAvailable location onboardingStatus')
+      .populate('template','active');
     
     console.log('📋 Found services by NAME match:', services.map(s => ({ 
       name: s.name, 
@@ -1094,7 +1111,9 @@ export const createBookingWithQuestionnaire = async (req, res) => {
       console.log('⚠️ No name matches found, searching by category:', catalog.category);
       services = await Service.find({
         category: { $regex: new RegExp(`^${catalog.category}$`, 'i') }
-      }).populate('provider','name rating ratingCount isAvailable location');
+      })
+        .populate('provider','name rating ratingCount isAvailable location onboardingStatus')
+        .populate('template','active');
       
       console.log('📋 Found services by CATEGORY match:', services.map(s => ({ 
         name: s.name, 
@@ -1109,6 +1128,11 @@ export const createBookingWithQuestionnaire = async (req, res) => {
       if (!s.provider) continue;
       const prov = s.provider;
       if (!prov.isAvailable) continue;
+      // ✅ Require provider to be approved by admin
+      if (prov.onboardingStatus !== 'approved') continue;
+      // ✅ Require underlying service template to be active
+      if (s.template && s.template.active === false) continue;
+
       const coords = Array.isArray(prov.location?.coordinates) ? prov.location.coordinates : [null,null];
       const [plng, plat] = coords;
       if (typeof plng !== 'number' || typeof plat !== 'number') continue; // skip invalid
@@ -1170,9 +1194,10 @@ export const createBookingWithQuestionnaire = async (req, res) => {
         candidates.sort((a,b)=> (b.rating - a.rating) || (a.distanceKm - b.distanceKm));
       }
     } else if (sortPreference === 'nearby') {
-      // Prefer within 1–5 km, then expand to 8, 12, 15
+      // Prefer within 0–5 km, then expand to 8, 12, 15
+      // ✅ Fixed min geofence band from 1 to 0 km so closest providers are correctly prioritized first
       const bands = [
-        {min:1, max:5},
+        {min:0, max:5},
         {min:0, max:8},
         {min:0, max:12},
         {min:0, max:15}
@@ -1207,11 +1232,30 @@ export const createBookingWithQuestionnaire = async (req, res) => {
     }
 
     // Prepare offers queue similar to multi-provider flow
-    // ✅ Offer timeout: 2 minutes (120 seconds) per provider for demo
     const OFFER_TIMEOUT_MS = 120 * 1000; // 2 minutes per offer
     const first = candidates[0];
     const queue = candidates.slice(1).map(c => c.provider._id);
     const now = new Date();
+
+    // ✅ Re-calculate and verify estimate on backend to prevent client-side price injection
+    const genericEstimate = computeEstimateHelper(catalog, serviceDetails.answers);
+    const providerEstimate = computeEstimateHelper(catalog, serviceDetails.answers, first.service.price);
+
+    const clientTotal = serviceDetails.estimate?.total;
+    const isGenericMatch = typeof clientTotal === 'number' && Math.abs(clientTotal - genericEstimate.total) <= 5;
+    const isProviderMatch = typeof clientTotal === 'number' && Math.abs(clientTotal - providerEstimate.total) <= 5;
+
+    if (!isGenericMatch && !isProviderMatch) {
+      return res.status(400).json({
+        message: 'Estimate verification failed. Price mismatch detected.',
+        expectedGenericEstimate: genericEstimate,
+        expectedProviderEstimate: providerEstimate
+      });
+    }
+
+    // ✅ Always overwrite the booking estimate with the verified provider-specific estimate
+    // to ensure the final booking price correctly reflects the assigned provider's rates.
+    serviceDetails.estimate = providerEstimate;
 
     console.log('🎯 SELECTED PROVIDER:', {
       providerName: first.provider.name,
@@ -1277,6 +1321,7 @@ export const createBookingWithQuestionnaire = async (req, res) => {
     res.status(500).json({ message: 'Error creating booking', error: error.message });
   }
 };
+
 
 // Mark booking as paid via Razorpay (online payment)
 export const markOnlinePaid = async (req, res) => {

@@ -8,7 +8,7 @@ export const getPendingVerifications = async (req, res) => {
       role: 'provider',
       onboardingStatus: 'pending'
     })
-      .select('name email phone licenseImage licenseType licenseNumber onboardingStatus verificationSubmittedAt createdAt')
+      .select('name email phone licenseImage licenseType licenseNumber onboardingStatus verificationSubmittedAt createdAt workBeforeImage workAfterImage')
       .sort('-verificationSubmittedAt');
     
     res.json({
@@ -27,7 +27,7 @@ export const getApprovedProviders = async (req, res) => {
       role: 'provider',
       onboardingStatus: 'approved'
     })
-      .select('name email phone licenseImage licenseType licenseNumber onboardingStatus rating ratingCount completedJobs isAvailable createdAt verificationReviewedAt verificationSubmittedAt')
+      .select('name email phone licenseImage licenseType licenseNumber onboardingStatus rating ratingCount completedJobs isAvailable createdAt verificationReviewedAt verificationSubmittedAt workBeforeImage workAfterImage')
       .sort('-verificationReviewedAt');
     
     res.json({
@@ -46,7 +46,7 @@ export const getRejectedProviders = async (req, res) => {
       role: 'provider',
       onboardingStatus: 'rejected'
     })
-      .select('name email phone licenseImage licenseType licenseNumber onboardingStatus rejectionReason verificationReviewedAt')
+      .select('name email phone licenseImage licenseType licenseNumber onboardingStatus rejectionReason verificationReviewedAt workBeforeImage workAfterImage')
       .sort('-verificationReviewedAt');
     
     res.json({

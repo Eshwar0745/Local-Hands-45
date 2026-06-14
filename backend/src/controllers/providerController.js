@@ -21,11 +21,13 @@ export const submitOnboarding = async (req, res) => {
 
 export const submitLicenseVerification = async (req, res) => {
   try {
-    const { licenseImage, licenseType, licenseNumber } = req.body;
+    const { licenseImage, licenseType, licenseNumber, workBeforeImage, workAfterImage } = req.body;
 
     if (!licenseImage) return res.status(400).json({ message: "License image is required" });
     if (!["aadhar", "pan", "driving_license", "other"].includes(licenseType))
       return res.status(400).json({ message: "Invalid license type" });
+    if (!workBeforeImage) return res.status(400).json({ message: "Work before image is required" });
+    if (!workAfterImage) return res.status(400).json({ message: "Work after image is required" });
 
     const user = await User.findByIdAndUpdate(
       req.userId,
@@ -33,6 +35,8 @@ export const submitLicenseVerification = async (req, res) => {
         licenseImage,
         licenseType,
         licenseNumber,
+        workBeforeImage,
+        workAfterImage,
         onboardingStatus: "pending",
         verificationSubmittedAt: new Date(),
       },
@@ -41,7 +45,7 @@ export const submitLicenseVerification = async (req, res) => {
 
     res.json({
       user,
-      message: "License submitted successfully. Waiting for admin approval.",
+      message: "License and work proofs submitted successfully. Waiting for admin approval.",
     });
   } catch (e) {
     res.status(500).json({ message: e.message });
@@ -51,7 +55,7 @@ export const submitLicenseVerification = async (req, res) => {
 export const getVerificationStatus = async (req, res) => {
   try {
     const user = await User.findById(req.userId).select(
-      "onboardingStatus licenseImage licenseType verificationSubmittedAt rejectionReason"
+      "onboardingStatus licenseImage licenseType licenseNumber verificationSubmittedAt rejectionReason workBeforeImage workAfterImage"
     );
     if (!user) return res.status(404).json({ message: "User not found" });
 
@@ -59,8 +63,11 @@ export const getVerificationStatus = async (req, res) => {
       status: user.onboardingStatus,
       licenseImage: user.licenseImage,
       licenseType: user.licenseType,
+      licenseNumber: user.licenseNumber,
       submittedAt: user.verificationSubmittedAt,
       rejectionReason: user.rejectionReason,
+      workBeforeImage: user.workBeforeImage,
+      workAfterImage: user.workAfterImage,
     });
   } catch (e) {
     res.status(500).json({ message: e.message });

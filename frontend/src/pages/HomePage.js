@@ -3,11 +3,12 @@ import { useAuth } from "../context/AuthContext";
 import API from "../services/api";
 import ServiceCard from "../components/ServiceCard";
 import { FiSearch, FiShield, FiClock, FiZap, FiStar, FiCheck } from "react-icons/fi";
-import { Link, Navigate } from "react-router-dom";
+import { Link, Navigate, useNavigate } from "react-router-dom";
 import { motion, useReducedMotion } from "framer-motion";
 
 export default function HomePage() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [services, setServices] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -222,14 +223,14 @@ export default function HomePage() {
                     value={searchValue}
                     onChange={(e) => setSearchValue(e.target.value)}
                     onFocus={() => {
-                      setIsFocused(true);
-                      setShowSuggestions(true);
+                      navigate("/login");
                     }}
                   />
                   <button
                     onClick={(e) => {
                       e.preventDefault();
                       onCTAButtonClick(e);
+                      navigate("/login");
                     }}
                     style={rippleStyle}
                     className="animate-ripple relative z-10 px-6 py-4 bg-brand-primary dark:bg-blue-500 text-white font-medium hover:bg-blue-600 dark:hover:bg-blue-600/90 transition-colors"
@@ -255,6 +256,7 @@ export default function HomePage() {
                             setSearchValue(s);
                             setShowSuggestions(false);
                             setIsFocused(false);
+                            navigate("/login");
                           }}
                         >
                           {s}
@@ -338,8 +340,8 @@ export default function HomePage() {
             <motion.div ref={heroImgRef} variants={heroChild} className="relative">
               <div className="relative rounded-3xl overflow-hidden shadow-2xl border border-brand-gray-200/60 dark:border-gray-700/60">
                 <img
-                  src="https://images.unsplash.com/photo-1600585154526-990dced4db0d?q=80&w=800&auto=format&fit=crop"
-                  alt="Professional services"
+                  src="/images/hero-localhands.png"
+                  alt="LocalHands professional service team - cleaning, plumbing, and electrical services"
                   className={`w-full h-[500px] object-cover ${reduceMotion ? "" : "animate-kenburns animate-blur-in"}`}
                   draggable={false}
                 />
@@ -387,6 +389,127 @@ export default function HomePage() {
           )}
         </div>
       </section>
+
+      {/* How It Works */}
+      <section className="py-24 bg-gradient-to-b from-gray-50 to-white dark:from-[#1e293b] dark:to-[#0f172a] transition-colors duration-300">
+        <div className="max-w-7xl mx-auto px-6">
+          <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.6 }}>
+            <h2 className="text-4xl font-bold text-center mb-4 text-gray-900 dark:text-white">
+              How It{" "}
+              <span className="text-transparent bg-clip-text bg-gradient-to-r from-brand-primary to-brand-secondary dark:from-blue-400 dark:to-blue-600">Works</span>
+            </h2>
+            <p className="text-center text-lg text-gray-600 dark:text-gray-400 mb-16 max-w-2xl mx-auto">
+              Get professional help at your doorstep in just three simple steps
+            </p>
+          </motion.div>
+          <div className="grid md:grid-cols-3 gap-10 relative">
+            {/* Connector line */}
+            <div className="hidden md:block absolute top-16 left-[20%] right-[20%] h-0.5 bg-gradient-to-r from-brand-primary via-blue-400 to-brand-secondary dark:from-blue-500 dark:via-blue-400 dark:to-blue-600 opacity-30" />
+            {[
+              {
+                step: "01",
+                title: "Choose a Service",
+                desc: "Browse our wide range of verified local services – from plumbing and cleaning to beauty and tech repairs.",
+                icon: "🔍",
+                gradient: "from-blue-500 to-blue-600",
+              },
+              {
+                step: "02",
+                title: "Book Instantly",
+                desc: "Select your preferred date, time, and provider. Get instant confirmation with transparent pricing.",
+                icon: "📅",
+                gradient: "from-purple-500 to-purple-600",
+              },
+              {
+                step: "03",
+                title: "Sit Back & Relax",
+                desc: "Your verified professional arrives on time. Track progress in real-time and pay securely after completion.",
+                icon: "✅",
+                gradient: "from-green-500 to-green-600",
+              },
+            ].map((item, i) => (
+              <motion.div
+                key={item.step}
+                initial={{ opacity: 0, y: 30 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ duration: 0.5, delay: i * 0.15 }}
+                className="relative text-center group"
+              >
+                <div className={`w-20 h-20 mx-auto mb-6 rounded-2xl bg-gradient-to-br ${item.gradient} flex items-center justify-center text-3xl shadow-lg group-hover:scale-110 group-hover:shadow-xl transition-all duration-300`}>
+                  {item.icon}
+                </div>
+                <span className="inline-block text-xs font-bold text-brand-primary dark:text-blue-400 bg-brand-primary/10 dark:bg-blue-500/20 px-3 py-1 rounded-full mb-3">
+                  STEP {item.step}
+                </span>
+                <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-3">{item.title}</h3>
+                <p className="text-gray-600 dark:text-gray-400 leading-relaxed">{item.desc}</p>
+              </motion.div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Footer */}
+      <footer className="bg-gray-900 dark:bg-[#020617] text-gray-300">
+        <div className="max-w-7xl mx-auto px-6 py-14">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-12">
+
+            {/* Brand */}
+            <div>
+              <div className="flex items-center gap-2 mb-4">
+                <div className="w-9 h-9 bg-gradient-to-br from-blue-500 to-blue-700 rounded-lg flex items-center justify-center">
+                  <span className="text-white text-sm font-bold">LH</span>
+                </div>
+                <span className="text-lg font-bold text-white">LocalHands</span>
+              </div>
+              <p className="text-gray-400 text-sm leading-relaxed">
+                LocalHands connects you with verified local service professionals for home repairs, maintenance, and personal care. All providers are background-verified and rated by real customers.
+              </p>
+            </div>
+
+            {/* Terms & Conditions */}
+            <div>
+              <h4 className="text-white font-semibold mb-4 text-sm uppercase tracking-wider">Terms &amp; Conditions</h4>
+              <div className="text-gray-400 text-sm leading-relaxed space-y-3">
+                <p>By using LocalHands, you agree to our terms of service. All bookings are subject to provider availability and confirmation.</p>
+                <p>Service charges displayed are estimates. Final billing is based on the actual scope of work completed and agreed upon between the customer and the provider.</p>
+                <p>Cancellations made within 1 hour of the scheduled service may be subject to a cancellation fee. Refunds are processed within 5–7 business days.</p>
+                <p>LocalHands is not liable for any damages arising from services rendered by independent providers listed on the platform.</p>
+              </div>
+            </div>
+
+            {/* Support */}
+            <div>
+              <h4 className="text-white font-semibold mb-4 text-sm uppercase tracking-wider">Support</h4>
+              <div className="text-gray-400 text-sm leading-relaxed space-y-3">
+                <p>Need help with a booking, payment, or provider issue? Our support team is here to assist you.</p>
+                <p>For any queries, complaints, or feedback, reach out to us at:</p>
+                <a
+                  href="mailto:godspeeed786@gmail.com"
+                  className="inline-flex items-center gap-2 text-blue-400 hover:text-blue-300 transition-colors duration-200 font-medium"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>
+                  godspeeed786@gmail.com
+                </a>
+                <p>We typically respond within 24 hours. For urgent issues related to ongoing services, please mention your booking ID in the subject line.</p>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        {/* Bottom Bar */}
+        <div className="border-t border-gray-800">
+          <div className="max-w-7xl mx-auto px-6 py-5 flex flex-col sm:flex-row justify-between items-center gap-3">
+            <p className="text-gray-500 text-xs">© {new Date().getFullYear()} LocalHands. All rights reserved.</p>
+            <p className="text-gray-600 text-xs">
+              Built for connecting communities with trusted local professionals.
+            </p>
+          </div>
+        </div>
+      </footer>
     </div>
   );
 }
+

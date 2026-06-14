@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import io from 'socket.io-client';
 import './TrackingModal.css';
 import API from '../services/api';
 import TrackingMap from './TrackingMap';
@@ -48,10 +49,47 @@ const TrackingModal = ({ booking, trackingData, onClose, viewerRole = 'customer'
       }
     };
 
-    // Immediate fetch, then poll
+    // Immediate fetch, then poll as fallback
     fetchTracking();
-    const interval = setInterval(fetchTracking, 10000);
-    return () => clearInterval(interval);
+    const interval = setInterval(fetchTracking, 15000); // Poll less frequently when socket is active
+
+    // Establish Socket.io connection for real-time tracking
+    const socketUrl = API.defaults.baseURL 
+      ? API.defaults.baseURL.replace('/api', '') 
+      : (process.env.REACT_APP_API_BASE ? process.env.REACT_APP_API_BASE.replace('/api', '') : 'http://localhost:5000');
+    
+    console.log('🔌 Connecting to socket server at:', socketUrl);
+    const socket = io(socketUrl, { credentials: true });
+
+    // Join room for this customer/booking
+    const customerId = booking.customer?._id || booking.customer;
+    if (customerId) {
+      socket.emit('join', customerId.toString());
+    }
+
+    // Listen to real-time location updates
+    socket.on('provider:location', (data) => {
+      console.log('🔌 Real-time location received:', data);
+      if (data.bookingId === booking._id) {
+        if (typeof data.lat === 'number' && typeof data.lng === 'number') {
+          if (!(data.lat === 0 && data.lng === 0)) {
+            setProvider({ lat: data.lat, lng: data.lng });
+          }
+        }
+        if (typeof data.distanceFromBooking === 'number') {
+          setDistanceKm(data.distanceFromBooking);
+          // Recalculate ETA (average speed 20km/h)
+          const avgSpeedKmH = 20;
+          const etaMinutes = Math.max(1, Math.ceil((data.distanceFromBooking / avgSpeedKmH) * 60));
+          setEta(`${etaMinutes} min`);
+        }
+      }
+    });
+
+    return () => {
+      clearInterval(interval);
+      socket.disconnect();
+    };
   }, [booking]);
  
   // Prefer the moving actor for the map link.

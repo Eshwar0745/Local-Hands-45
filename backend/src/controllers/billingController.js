@@ -10,7 +10,11 @@ async function nextTransactionId(retry = 0) {
     { $inc: { seq: 1 } },
     { upsert: true, returnDocument: "after" }
   );
-  const seq = (res && res.value && typeof res.value.seq === 'number') ? res.value.seq : 1;
+  const seq = (res && res.value && typeof res.value.seq === 'number') 
+    ? res.value.seq 
+    : (res && typeof res.seq === 'number') 
+      ? res.seq 
+      : 1;
   const padded = String(seq).padStart(6, '0');
   const id = `TXN${padded}`;
   // Check for duplicate

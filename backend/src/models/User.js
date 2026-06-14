@@ -32,6 +32,8 @@ const userSchema = new mongoose.Schema(
     licenseImage: { type: String }, // URL/path to uploaded license (Aadhar/PAN/DL)
     licenseType: { type: String, enum: ["aadhar", "pan", "driving_license", "other"] },
     licenseNumber: { type: String }, // Optional: provider can enter license number
+    workBeforeImage: { type: String }, // URL of work before image
+    workAfterImage: { type: String }, // URL of work after image
     verificationSubmittedAt: { type: Date }, // When provider submitted verification
     verificationReviewedAt: { type: Date }, // When admin reviewed
     verificationReviewedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" }, // Admin who reviewed

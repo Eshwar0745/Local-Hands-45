@@ -21,7 +21,7 @@ describe('Provider select services', () => {
     await Category.deleteMany({});
     await ServiceTemplate.deleteMany({});
     
-    provider = await User.create({ name: 'Prov', email: 'prov@test.com', password: await bcrypt.hash('pass',10), role: 'provider', verified: true });
+    provider = await User.create({ name: 'Prov', email: 'prov@test.com', password: await bcrypt.hash('pass',10), role: 'provider', verified: true, onboardingStatus: 'approved' });
   const category = await Category.create({ name: 'TestCat' });
     template = await ServiceTemplate.create({ name: 'Test Service', category: category._id, defaultPrice: 42, active: true });
   });

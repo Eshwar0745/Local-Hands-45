@@ -41,7 +41,7 @@ router.post("/", requireAuth, requireRole("provider"), (req, res) => {
 });
 
 // Update service (owner provider) - restrict template derived services
-router.patch(":id", requireAuth, requireRole("provider"), async (req, res) => {
+router.patch("/:id", requireAuth, requireRole("provider"), async (req, res) => {
   try {
     const { id } = req.params;
     const service = await Service.findOne({ _id: id, provider: req.userId });
@@ -67,7 +67,7 @@ router.patch(":id", requireAuth, requireRole("provider"), async (req, res) => {
 });
 
 // Delete service (owner provider) - allow deletion of templated selection (they can re-add), block if service is in active bookings (future enhancement)
-router.delete(":id", requireAuth, requireRole("provider"), async (req, res) => {
+router.delete("/:id", requireAuth, requireRole("provider"), async (req, res) => {
   try {
     const { id } = req.params;
     const service = await Service.findOne({ _id: id, provider: req.userId });

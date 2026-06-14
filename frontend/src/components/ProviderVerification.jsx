@@ -16,6 +16,14 @@ export default function ProviderVerification({ user, onStatusChange }) {
   const [success, setSuccess] = useState('');
   const [verificationData, setVerificationData] = useState(null);
 
+  // ✅ New work proof states
+  const [workBeforeImage, setWorkBeforeImage] = useState('');
+  const [workBeforeFile, setWorkBeforeFile] = useState(null);
+  const [workBeforePreview, setWorkBeforePreview] = useState(null);
+  const [workAfterImage, setWorkAfterImage] = useState('');
+  const [workAfterFile, setWorkAfterFile] = useState(null);
+  const [workAfterPreview, setWorkAfterPreview] = useState(null);
+
   // Fetch current verification status
   const fetchStatus = async () => {
     try {
@@ -35,6 +43,14 @@ export default function ProviderVerification({ user, onStatusChange }) {
       }
       if (data.licenseType) setLicenseType(data.licenseType);
       if (data.licenseNumber) setLicenseNumber(data.licenseNumber);
+      if (data.workBeforeImage) {
+        setWorkBeforeImage(data.workBeforeImage);
+        setWorkBeforePreview(data.workBeforeImage);
+      }
+      if (data.workAfterImage) {
+        setWorkAfterImage(data.workAfterImage);
+        setWorkAfterPreview(data.workAfterImage);
+      }
     } catch (err) {
       console.error('Failed to fetch verification status:', err);
     }
@@ -44,7 +60,7 @@ export default function ProviderVerification({ user, onStatusChange }) {
     fetchStatus();
   }, []);
 
-  // Handle file selection
+  // Handle file selection for license
   const handleFileChange = (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -69,6 +85,38 @@ export default function ProviderVerification({ user, onStatusChange }) {
     reader.onloadend = () => {
       setImagePreview(reader.result);
     };
+    reader.readAsDataURL(file);
+  };
+
+  // ✅ Handle file selection for work images
+  const handleWorkFileChange = (e, type) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      setError('Please select an image file');
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      setError('Image size should be less than 5MB');
+      return;
+    }
+
+    setError('');
+    const reader = new FileReader();
+
+    if (type === 'before') {
+      setWorkBeforeFile(file);
+      reader.onloadend = () => {
+        setWorkBeforePreview(reader.result);
+      };
+    } else {
+      setWorkAfterFile(file);
+      reader.onloadend = () => {
+        setWorkAfterPreview(reader.result);
+      };
+    }
     reader.readAsDataURL(file);
   };
 
@@ -104,6 +152,37 @@ export default function ProviderVerification({ user, onStatusChange }) {
     }
   };
 
+  // ✅ Upload work image to backend (which uploads to Cloudinary)
+  const uploadWorkImage = async (file) => {
+    if (!file) {
+      setError('Please select an image first');
+      return null;
+    }
+
+    setUploading(true);
+    setError('');
+
+    try {
+      const formData = new FormData();
+      formData.append('work_image', file);
+      
+      const { data } = await API.post('/upload/work-image', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+
+      return data.url;
+
+    } catch (err) {
+      const errorMsg = err.response?.data?.message || err.message || 'Upload failed';
+      setError('Failed to upload work image: ' + errorMsg);
+      return null;
+    } finally {
+      setUploading(false);
+    }
+  };
+
   // Submit verification
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -121,6 +200,17 @@ export default function ProviderVerification({ user, onStatusChange }) {
       return;
     }
 
+    // Validate work proofs are provided
+    if (!workBeforeImage && !workBeforeFile) {
+      setError('Please upload your past work "Before" image');
+      return;
+    }
+
+    if (!workAfterImage && !workAfterFile) {
+      setError('Please upload your past work "After" image');
+      return;
+    }
+
     setSubmitting(true);
 
     try {
@@ -134,17 +224,41 @@ export default function ProviderVerification({ user, onStatusChange }) {
         }
       }
 
+      // Upload before work image if new file selected
+      let beforeUrl = workBeforeImage;
+      if (workBeforeFile) {
+        beforeUrl = await uploadWorkImage(workBeforeFile);
+        if (!beforeUrl) {
+          setSubmitting(false);
+          return;
+        }
+      }
+
+      // Upload after work image if new file selected
+      let afterUrl = workAfterImage;
+      if (workAfterFile) {
+        afterUrl = await uploadWorkImage(workAfterFile);
+        if (!afterUrl) {
+          setSubmitting(false);
+          return;
+        }
+      }
+
       // Submit verification
       const { data } = await API.post('/providers/submit-verification', {
         licenseImage: imageUrl,
         licenseType,
         licenseNumber: licenseNumber.trim() || undefined,
+        workBeforeImage: beforeUrl,
+        workAfterImage: afterUrl,
       });
 
-      setSuccess('License submitted successfully! Waiting for admin approval.');
+      setSuccess('License and work proofs submitted successfully! Waiting for admin approval.');
       setStatus('pending');
       setVerificationData(data.user);
       setImageFile(null);
+      setWorkBeforeFile(null);
+      setWorkAfterFile(null);
       
       // Notify parent component
       if (onStatusChange) {
@@ -174,19 +288,47 @@ export default function ProviderVerification({ user, onStatusChange }) {
               Verification Approved!
             </h3>
             <p className="text-gray-600 dark:text-gray-400 mb-4">
-              Your license has been verified. You can now go live and start accepting bookings.
+              Your license and work proofs have been verified. You can now go live and start accepting bookings.
             </p>
-            <VerificationStatusBadge status="approved" size="lg" />
+            <div className="mb-6 flex justify-center">
+              <VerificationStatusBadge status="approved" size="lg" />
+            </div>
             
-            {verificationData?.licenseImage && (
-              <div className="mt-6">
-                <img
-                  src={verificationData.licenseImage}
-                  alt="Verified License"
-                  className="max-w-xs mx-auto rounded-lg border-2 border-green-500 shadow-md"
-                />
-              </div>
-            )}
+            <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-6 max-w-4xl mx-auto">
+              {verificationData?.licenseImage && (
+                <div className="flex flex-col items-center">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-2">Government ID</p>
+                  <img
+                    src={verificationData.licenseImage}
+                    alt="Verified License"
+                    className="h-40 w-full object-cover rounded-lg border border-gray-200 dark:border-gray-700 shadow-md cursor-pointer hover:opacity-90 transition-opacity"
+                    onClick={() => window.open(verificationData.licenseImage, '_blank')}
+                  />
+                </div>
+              )}
+              {verificationData?.workBeforeImage && (
+                <div className="flex flex-col items-center">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-2">Work Proof: Before</p>
+                  <img
+                    src={verificationData.workBeforeImage}
+                    alt="Work Before"
+                    className="h-40 w-full object-cover rounded-lg border border-gray-200 dark:border-gray-700 shadow-md cursor-pointer hover:opacity-90 transition-opacity"
+                    onClick={() => window.open(verificationData.workBeforeImage, '_blank')}
+                  />
+                </div>
+              )}
+              {verificationData?.workAfterImage && (
+                <div className="flex flex-col items-center">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-2">Work Proof: After</p>
+                  <img
+                    src={verificationData.workAfterImage}
+                    alt="Work After"
+                    className="h-40 w-full object-cover rounded-lg border border-gray-200 dark:border-gray-700 shadow-md cursor-pointer hover:opacity-90 transition-opacity"
+                    onClick={() => window.open(verificationData.workAfterImage, '_blank')}
+                  />
+                </div>
+              )}
+            </div>
           </div>
         );
 
@@ -200,9 +342,11 @@ export default function ProviderVerification({ user, onStatusChange }) {
               Verification Pending
             </h3>
             <p className="text-gray-600 dark:text-gray-400 mb-4">
-              Your license is under review. Admin will approve it shortly.
+              Your license and work proofs are under review. Admin will approve them shortly.
             </p>
-            <VerificationStatusBadge status="pending" size="lg" />
+            <div className="mb-4 flex justify-center">
+              <VerificationStatusBadge status="pending" size="lg" />
+            </div>
             
             {/* Refresh Status Button */}
             <button
@@ -219,15 +363,41 @@ export default function ProviderVerification({ user, onStatusChange }) {
               </p>
             )}
 
-            {verificationData?.licenseImage && (
-              <div className="mt-6">
-                <img
-                  src={verificationData.licenseImage}
-                  alt="Submitted License"
-                  className="max-w-xs mx-auto rounded-lg border shadow-md"
-                />
-              </div>
-            )}
+            <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-6 max-w-4xl mx-auto">
+              {verificationData?.licenseImage && (
+                <div className="flex flex-col items-center">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-2">Submitted ID</p>
+                  <img
+                    src={verificationData.licenseImage}
+                    alt="Submitted License"
+                    className="h-40 w-full object-cover rounded-lg border border-gray-200 dark:border-gray-700 shadow-md cursor-pointer hover:opacity-90 transition-opacity"
+                    onClick={() => window.open(verificationData.licenseImage, '_blank')}
+                  />
+                </div>
+              )}
+              {verificationData?.workBeforeImage && (
+                <div className="flex flex-col items-center">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-2">Submitted Proof: Before</p>
+                  <img
+                    src={verificationData.workBeforeImage}
+                    alt="Submitted Before"
+                    className="h-40 w-full object-cover rounded-lg border border-gray-200 dark:border-gray-700 shadow-md cursor-pointer hover:opacity-90 transition-opacity"
+                    onClick={() => window.open(verificationData.workBeforeImage, '_blank')}
+                  />
+                </div>
+              )}
+              {verificationData?.workAfterImage && (
+                <div className="flex flex-col items-center">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-2">Submitted Proof: After</p>
+                  <img
+                    src={verificationData.workAfterImage}
+                    alt="Submitted After"
+                    className="h-40 w-full object-cover rounded-lg border border-gray-200 dark:border-gray-700 shadow-md cursor-pointer hover:opacity-90 transition-opacity"
+                    onClick={() => window.open(verificationData.workAfterImage, '_blank')}
+                  />
+                </div>
+              )}
+            </div>
           </div>
         );
 
@@ -249,7 +419,7 @@ export default function ProviderVerification({ user, onStatusChange }) {
                 </div>
               )}
               <p className="text-gray-600 dark:text-gray-400 mb-4">
-                Please upload a valid license and try again.
+                Please upload a valid license and correct work proof images and try again.
               </p>
             </div>
             
@@ -295,39 +465,113 @@ export default function ProviderVerification({ user, onStatusChange }) {
         />
       </div>
 
-      <div>
-        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-          Upload License Image *
-        </label>
-        
-        <div className="mt-2">
-          <label className="flex flex-col items-center justify-center w-full h-48 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
-            <div className="flex flex-col items-center justify-center pt-5 pb-6">
-              {imagePreview ? (
-                <img
-                  src={imagePreview}
-                  alt="License preview"
-                  className="max-h-40 rounded-lg"
-                />
-              ) : (
-                <>
-                  <FiImage className="w-12 h-12 mb-3 text-gray-400" />
-                  <p className="mb-2 text-sm text-gray-500 dark:text-gray-400">
-                    <span className="font-semibold">Click to upload</span> or drag and drop
-                  </p>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">
-                    PNG, JPG, JPEG (MAX. 5MB)
-                  </p>
-                </>
-              )}
-            </div>
-            <input
-              type="file"
-              className="hidden"
-              accept="image/*"
-              onChange={handleFileChange}
-            />
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        {/* Government ID Image Upload */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            Upload License Image *
           </label>
+          <div className="mt-2">
+            <label className="flex flex-col items-center justify-center w-full h-48 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+              <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                {imagePreview ? (
+                  <img
+                    src={imagePreview}
+                    alt="License preview"
+                    className="max-h-40 rounded-lg"
+                  />
+                ) : (
+                  <>
+                    <FiImage className="w-12 h-12 mb-3 text-gray-400" />
+                    <p className="mb-2 text-xs text-gray-500 dark:text-gray-400 text-center px-2">
+                      <span className="font-semibold">Click to upload ID</span>
+                    </p>
+                    <p className="text-[10px] text-gray-500 dark:text-gray-400">
+                      PNG, JPG, JPEG (MAX. 5MB)
+                    </p>
+                  </>
+                )}
+              </div>
+              <input
+                type="file"
+                className="hidden"
+                accept="image/*"
+                onChange={handleFileChange}
+              />
+            </label>
+          </div>
+        </div>
+
+        {/* Work Before Image Upload */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            Work Image (Before) *
+          </label>
+          <div className="mt-2">
+            <label className="flex flex-col items-center justify-center w-full h-48 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+              <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                {workBeforePreview ? (
+                  <img
+                    src={workBeforePreview}
+                    alt="Work Before preview"
+                    className="max-h-40 rounded-lg"
+                  />
+                ) : (
+                  <>
+                    <FiImage className="w-12 h-12 mb-3 text-gray-400" />
+                    <p className="mb-2 text-xs text-gray-500 dark:text-gray-400 text-center px-2">
+                      <span className="font-semibold">Upload "Before" Work Image</span>
+                    </p>
+                    <p className="text-[10px] text-gray-500 dark:text-gray-400">
+                      PNG, JPG, JPEG (MAX. 5MB)
+                    </p>
+                  </>
+                )}
+              </div>
+              <input
+                type="file"
+                className="hidden"
+                accept="image/*"
+                onChange={(e) => handleWorkFileChange(e, 'before')}
+              />
+            </label>
+          </div>
+        </div>
+
+        {/* Work After Image Upload */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            Work Image (After) *
+          </label>
+          <div className="mt-2">
+            <label className="flex flex-col items-center justify-center w-full h-48 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+              <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                {workAfterPreview ? (
+                  <img
+                    src={workAfterPreview}
+                    alt="Work After preview"
+                    className="max-h-40 rounded-lg"
+                  />
+                ) : (
+                  <>
+                    <FiImage className="w-12 h-12 mb-3 text-gray-400" />
+                    <p className="mb-2 text-xs text-gray-500 dark:text-gray-400 text-center px-2">
+                      <span className="font-semibold">Upload "After" Work Image</span>
+                    </p>
+                    <p className="text-[10px] text-gray-500 dark:text-gray-400">
+                      PNG, JPG, JPEG (MAX. 5MB)
+                    </p>
+                  </>
+                )}
+              </div>
+              <input
+                type="file"
+                className="hidden"
+                accept="image/*"
+                onChange={(e) => handleWorkFileChange(e, 'after')}
+              />
+            </label>
+          </div>
         </div>
       </div>
 
@@ -358,13 +602,13 @@ export default function ProviderVerification({ user, onStatusChange }) {
         ) : (
           <>
             <FiUpload className="w-5 h-5" />
-            {status === 'rejected' ? 'Resubmit License' : 'Submit for Verification'}
+            {status === 'rejected' ? 'Resubmit Verification' : 'Submit for Verification'}
           </>
         )}
       </button>
 
       <p className="text-xs text-gray-500 dark:text-gray-400 text-center">
-        Your license will be reviewed by admin. You'll be notified once approved.
+        Your verification details will be reviewed by admin. You'll be notified once approved.
       </p>
     </form>
   );
@@ -373,10 +617,10 @@ export default function ProviderVerification({ user, onStatusChange }) {
     <div className="bg-white dark:bg-gray-900 rounded-lg shadow-md p-6">
       <div className="mb-6">
         <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
-          License Verification
+          Provider Verification
         </h2>
         <p className="text-gray-600 dark:text-gray-400">
-          Submit your government ID for verification to start accepting bookings
+          Submit your government ID and before/after past work images for verification to start accepting bookings
         </p>
       </div>
 
