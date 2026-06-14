@@ -1,6 +1,13 @@
 import React, { useState } from 'react';
-import axios from 'axios';
+import API from '../services/api';
 import './BillGenerationModal.css';
+const response = await API.post(`/billing/${booking._id}/generate-bill`, {
+  serviceCharges: parseFloat(formData.serviceCharges),
+  extraFees: parseFloat(formData.extraFees) || 0,
+  discount: parseFloat(formData.discount) || 0,
+  tax: parseFloat(formData.tax) || 0,
+  notes: formData.notes
+});
 
 const BillGenerationModal = ({ booking, onClose, onBillGenerated }) => {
   // ✅ Auto-fill from questionnaire estimate if available
